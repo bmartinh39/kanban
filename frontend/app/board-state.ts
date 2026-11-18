@@ -4,7 +4,7 @@ export type Action =
   | { type: "add"; columnId: string; card: Card }
   | { type: "delete"; cardId: string }
   | { type: "rename"; columnId: string; name: string }
-  | { type: "move"; cardId: string; columnId: string };
+  | { type: "move"; cardId: string; columnId: string; index?: number };
 
 export const initialBoard: Column[] = [
   { id: "ideas", name: "Ideas", cards: [
@@ -45,7 +45,16 @@ export function boardReducer(board: Column[], action: Action): Column[] {
       return board.map(column => column.id === action.columnId ? { ...column, name: action.name.trim() } : column);
     case "move": {
       const source = board.find(column => column.cards.some(card => card.id === action.cardId))!;
-      if (source.id === action.columnId) return board;
+      if (source.id === action.columnId) {
+        if (action.index === undefined) return board;
+        const currentIndex = source.cards.findIndex(card => card.id === action.cardId);
+        if (currentIndex === action.index) return board;
+
+        const cards = [...source.cards];
+        const [card] = cards.splice(currentIndex, 1);
+        cards.splice(action.index, 0, card);
+        return board.map(column => column === source ? { ...column, cards } : column);
+      }
       const card = source.cards.find(card => card.id === action.cardId)!;
       return board.map(column => column.id === source.id
         ? { ...column, cards: column.cards.filter(item => item.id !== card.id) }
