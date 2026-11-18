@@ -100,6 +100,7 @@ export default function Home() {
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const addTrigger = useRef<HTMLButtonElement>(null);
+  const boardViewport = useRef<HTMLDivElement>(null);
   function closeDialog() {
     setAddingTo(null);
     requestAnimationFrame(() => addTrigger.current?.focus());
@@ -127,13 +128,13 @@ export default function Home() {
       <DndContext
         id="project-board"
         sensors={sensors}
-        collisionDetection={boardCollisionDetection}
+        collisionDetection={args => boardCollisionDetection(args, boardViewport.current?.getBoundingClientRect())}
         onDragStart={event => setActiveId(String(event.active.id))}
         onDragCancel={() => setActiveId(null)}
         onDragEnd={handleDragEnd}
         accessibility={{ screenReaderInstructions: { draggable: "Press Space to pick up a card. Use Up and Down to reorder it within its column. Use Left and Right to move it to another column. Press Space to drop, or Escape to cancel." } }}
       >
-        <div className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={cardId => dispatch({ type: "delete", cardId })} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div></div>
+        <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={cardId => dispatch({ type: "delete", cardId })} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div></div>
         <DragOverlay>{activeCard && <div className="task-card drag-preview"><div className="card-tools"><GripVertical size={16} /></div><CardContent card={activeCard} /></div>}</DragOverlay>
       </DndContext>
       <footer className="board-footer"><span><GripVertical size={14} /> Grab a handle. Find a new perspective.</span><span>Built for a little forward motion <ArrowUpRight size={14} /></span></footer>

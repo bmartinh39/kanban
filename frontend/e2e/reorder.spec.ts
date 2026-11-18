@@ -96,3 +96,36 @@ test("pointer reorders between unequal-height cards without changing their conte
   expect(await cardContent(ideas)).toEqual(originalContent);
   await expect(page.getByRole("article")).toHaveCount(12);
 });
+
+test("dropping in the gutter beside a clipped column leaves the order unchanged", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 1000 });
+  const ideas = page.getByRole("region", { name: "Ideas column", exact: true });
+  const planned = page.getByRole("region", { name: "Planned column", exact: true });
+  const scroll = page.getByLabel("Project board columns");
+  const handle = ideas.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  await handle.scrollIntoViewIfNeeded();
+
+  const [source, board, clipped] = await Promise.all([
+    handle.boundingBox(),
+    scroll.boundingBox(),
+    planned.boundingBox(),
+  ]);
+  const x = source!.x + source!.width / 2;
+  const y = source!.y + source!.height / 2;
+  const gutterX = Math.floor(board!.x + board!.width) + 8;
+  expect(gutterX).toBeLessThan(390);
+  expect(gutterX).toBeGreaterThan(clipped!.x);
+  expect(gutterX).toBeLessThan(clipped!.x + clipped!.width);
+
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 8, y);
+  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(ideas).toHaveClass(/is-over/);
+  await page.mouse.move(gutterX, y, { steps: 10 });
+  await page.mouse.up();
+  await expect(page.locator(".drag-preview")).toHaveCount(0);
+
+  await expectOrder(ideas, originalOrder);
+  await expect(planned.getByTestId("card-c1")).toHaveCount(0);
+});

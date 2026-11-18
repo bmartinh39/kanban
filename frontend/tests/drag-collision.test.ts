@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
-import type { CollisionDetection } from "@dnd-kit/core";
+import type { ClientRect, CollisionDetection } from "@dnd-kit/core";
 import { boardCollisionDetection } from "../app/drag-collision";
 import { active, containers, rect, rectangles } from "./drag-fixtures";
 
-function targetAt(x: number, y: number, pointer = true) {
+function targetAt(x: number, y: number, pointer = true, viewport?: ClientRect) {
   const args: Parameters<CollisionDetection>[0] = {
     active,
     collisionRect: rect(x - 105, y - 50, 210, 100),
@@ -11,7 +11,7 @@ function targetAt(x: number, y: number, pointer = true) {
     droppableRects: rectangles,
     pointerCoordinates: pointer ? { x, y } : null,
   };
-  return boardCollisionDetection(args)[0]?.id;
+  return boardCollisionDetection(args, viewport)[0]?.id;
 }
 
 it("prefers the source card to its parent column", () => {
@@ -40,4 +40,23 @@ it("uses the overlay center to select a keyboard target in the source column", (
 
 it("uses the destination column for keyboard append", () => {
   expect(targetAt(365, 114, false)).toBe("planned");
+});
+
+const boardViewport = rect(15, 70, 340, 340);
+
+it.each([
+  [14, 114],
+  [355, 114],
+  [115, 69],
+  [115, 410],
+])("ignores a pointer at (%i, %i) outside the viewport even when it overlaps a measured column", (x, y) => {
+  expect(targetAt(x, y, true, boardViewport)).toBeUndefined();
+});
+
+it("keeps the visible portion of a clipped destination targetable", () => {
+  expect(targetAt(330, 114, true, boardViewport)).toBe("planned");
+});
+
+it("allows a keyboard drag to target a column beyond the scroll viewport", () => {
+  expect(targetAt(365, 114, false, boardViewport)).toBe("planned");
 });

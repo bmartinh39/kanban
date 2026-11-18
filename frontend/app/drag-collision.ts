@@ -1,8 +1,18 @@
-import { closestCenter, pointerWithin, type CollisionDetection } from "@dnd-kit/core";
+import { closestCenter, pointerWithin, type ClientRect, type CollisionDetection } from "@dnd-kit/core";
 
-export const boardCollisionDetection: CollisionDetection = args => {
-  const { active, collisionRect, droppableContainers } = args;
-  const point = args.pointerCoordinates ?? {
+export function boardCollisionDetection(
+  args: Parameters<CollisionDetection>[0],
+  viewport?: ClientRect,
+): ReturnType<CollisionDetection> {
+  const { active, collisionRect, droppableContainers, pointerCoordinates } = args;
+
+  // Measured columns can extend past the scrolling viewport.
+  if (pointerCoordinates && viewport) {
+    const { x, y } = pointerCoordinates;
+    if (x < viewport.left || x >= viewport.right || y < viewport.top || y >= viewport.bottom) return [];
+  }
+
+  const point = pointerCoordinates ?? {
     x: collisionRect.left + collisionRect.width / 2,
     y: collisionRect.top + collisionRect.height / 2,
   };
@@ -32,4 +42,4 @@ export const boardCollisionDetection: CollisionDetection = args => {
     collisionRect: { left: point.x, right: point.x, top: point.y, bottom: point.y, width: 0, height: 0 },
   });
   return closest.length ? closest : columns;
-};
+}
