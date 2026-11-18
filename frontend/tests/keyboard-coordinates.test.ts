@@ -1,31 +1,63 @@
 import { expect, it } from "vitest";
-import type { KeyboardCoordinateGetter } from "@dnd-kit/core";
+import type { DroppableContainers } from "@dnd-kit/core";
 import { columnCoordinates } from "../app/keyboard-coordinates";
+import { active, containers, rect, rectangles } from "./drag-fixtures";
 
-function options(index = 1, hasActiveRect = true, hasTargetRect = true): Parameters<KeyboardCoordinateGetter>[1] {
-  return {
-    currentCoordinates: { x: 250, y: 70 },
+function press(code: string, overId: string, unmeasured?: string) {
+  const container = containers.find(item => item.id === overId)!;
+  const measured = new Map(rectangles);
+  if (unmeasured) measured.delete(unmeasured);
+  const overRect = rectangles.get(overId)!;
+  return columnCoordinates(new KeyboardEvent("keydown", { code }), {
+    active: active.id,
+    currentCoordinates: { x: 100, y: 200 },
     context: {
-      over: { id: `column-${index}` },
-      droppableContainers: { getEnabled: () => [0, 1, 2, 3, 4].map(i => ({ id: `column-${i}` })) },
-      droppableRects: new Map(hasTargetRect ? [0, 1, 2, 3, 4].map(i => [`column-${i}`, { left: i * 250, top: 0, width: 230, height: 600 }]) : []),
-      collisionRect: hasActiveRect ? { left: index * 250 + 10, top: 70, width: 210, height: 150 } : null,
+      active,
+      activatorEvent: null,
+      activeNode: null,
+      collisionRect: unmeasured === active.id ? null : rect(overRect.left, overRect.top, 210, 100),
+      collisions: null,
+      draggableNodes: new Map(),
+      draggingNode: null,
+      draggingNodeRect: null,
+      droppableContainers: { getEnabled: () => containers } as DroppableContainers,
+      droppableRects: measured,
+      over: { id: container.id, data: container.data, disabled: false, rect: overRect },
+      scrollableAncestors: [],
+      scrollAdjustedTranslate: null,
     },
-  } as unknown as Parameters<KeyboardCoordinateGetter>[1];
+  });
 }
 
-it.each(["ArrowRight", "ArrowDown"])("moves to the next column with %s", code => {
-  expect(columnCoordinates(new KeyboardEvent("keydown", { code }), options())).toEqual({ x: 500, y: -5 });
+it.each([
+  ["ArrowUp", { x: 100, y: 89 }],
+  ["ArrowDown", { x: 100, y: 346 }],
+] as const)("selects the adjacent card with %s", (code, expected) => {
+  expect(press(code, "c2")).toEqual(expected);
 });
-it.each(["ArrowLeft", "ArrowUp"])("moves to the previous column with %s", code => {
-  expect(columnCoordinates(new KeyboardEvent("keydown", { code }), options())).toEqual({ x: 0, y: -5 });
+
+it.each([
+  ["ArrowUp", "c1"],
+  ["ArrowDown", "c3"],
+  ["ArrowUp", "c4"],
+  ["ArrowDown", "c4"],
+  ["ArrowLeft", "c2"],
+  ["ArrowRight", "done"],
+] as const)("keeps the current coordinates at a boundary (%s over %s)", (code, target) => {
+  expect(press(code, target)).toEqual({ x: 100, y: 200 });
 });
-it.each([[0, "ArrowLeft"], [4, "ArrowRight"]] as const)("stays inside the five-column boundary at index %i", (index, code) => {
-  expect(columnCoordinates(new KeyboardEvent("keydown", { code }), options(index))).toEqual({ x: 250, y: 70 });
+
+it.each([
+  ["ArrowRight", "c2", { x: 350, y: 45 }],
+  ["ArrowLeft", "c4", { x: -150, y: 333.5 }],
+] as const)("selects the adjacent column with %s while over %s", (code, target, expected) => {
+  expect(press(code, target)).toEqual(expected);
 });
+
 it("ignores keys unrelated to movement", () => {
-  expect(columnCoordinates(new KeyboardEvent("keydown", { code: "KeyA" }), options())).toBeUndefined();
+  expect(press("KeyA", "c2")).toBeUndefined();
 });
-it.each([[false, true], [true, false]])("waits until the source and target have been measured", (active, target) => {
-  expect(columnCoordinates(new KeyboardEvent("keydown", { code: "ArrowRight" }), options(1, active, target))).toEqual({ x: 250, y: 70 });
+
+it.each(["c2", "c3"])("waits until both the dragged and target rectangles are measured (%s)", unmeasured => {
+  expect(press("ArrowDown", "c2", unmeasured)).toEqual({ x: 100, y: 200 });
 });

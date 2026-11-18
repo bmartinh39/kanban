@@ -10,6 +10,20 @@ describe("board interface", () => {
     expect(screen.getAllByRole("article")).toHaveLength(12);
     expect(screen.getByText("12 cards")).toBeInTheDocument();
   });
+  it("announces the picked-up card title and its current position", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    const handle = screen.getByRole("button", { name: "Move Give the homepage a fresh start" });
+    handle.focus();
+    await user.keyboard("[Space]");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Picked up Give the homepage a fresh start in Ideas, position 1 of 3.",
+    );
+    await user.keyboard("[Space]");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Dropped Give the homepage a fresh start in Ideas, position 1 of 3.",
+    );
+  });
   it("validates card creation, saves title and details, and updates the selected column", async () => {
     const user = userEvent.setup();
     render(<Home />);

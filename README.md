@@ -10,7 +10,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. On a card's drag handle, press Space to pick up, Left/Right to move between columns, Space to drop, or Escape to cancel.
+Open http://localhost:3000. On a card's drag handle, press Space to pick up, Up/Down to reorder, Left/Right to move between columns, Space to drop, or Escape to cancel.
 
 Checks (from `frontend`):
 

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -19,6 +19,12 @@ async function addCard(page: Page, column: string, title: string, details = "") 
   await expect(trigger).toBeFocused();
 }
 
+async function expectCardOrder(column: Locator, ids: string[]) {
+  await expect.poll(() => column.getByRole("article").evaluateAll(cards =>
+    cards.map(card => card.getAttribute("data-testid"))
+  )).toEqual(ids.map(id => `card-${id}`));
+}
+
 async function pointerMove(page: Page, cardId: string, target: string) {
   const handle = page.getByTestId(`card-${cardId}`).getByRole("button", { name: /^Move / });
   await handle.scrollIntoViewIfNeeded();
@@ -33,6 +39,7 @@ async function pointerMove(page: Page, cardId: string, target: string) {
   await page.mouse.move(to.x + to.width / 2, to.y + 100, { steps: 15 });
   await page.mouse.up();
   await expect(column.getByTestId(`card-${cardId}`)).toBeVisible();
+  await expect(page.locator(".drag-preview")).toHaveCount(0);
 }
 
 async function keyboardMove(page: Page, title: string, target: string, cancel = false) {
@@ -45,6 +52,7 @@ async function keyboardMove(page: Page, title: string, target: string, cancel = 
   await expect(page.getByRole("region", { name: `${target} column`, exact: true })).toHaveClass(/is-over/);
   await page.keyboard.press(cancel ? "Escape" : "Space");
   await expect(page.locator(".drag-preview")).toHaveCount(0);
+  await expect(handle).toBeFocused();
 }
 
 test("opens one board with five columns and dummy data", async ({ page }) => {
@@ -121,24 +129,103 @@ test("deletes only selected cards and allows adding to an empty column", async (
   await expect(done.getByText("Drop a card here or add one below.")).toHaveCount(0);
 });
 
-test("moves a card with pointer into populated and empty columns", async ({ page }) => {
+test("appends by pointer in populated and empty columns and reorders after a second arrival", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
+  const planned = page.getByRole("region", { name: "Planned column", exact: true });
+  const done = page.getByRole("region", { name: "Done column", exact: true });
   await pointerMove(page, "c1", "Planned");
+  await expectCardOrder(planned, ["c4", "c5", "c1"]);
   for (const card of ["c11", "c12"]) {
     await page.getByTestId(`card-${card}`).hover();
     await page.getByTestId(`card-${card}`).getByRole("button", { name: /^Delete / }).click();
   }
+  await expectCardOrder(done, []);
   await pointerMove(page, "c1", "Done");
+  await expectCardOrder(done, ["c1"]);
+  const onlyHandle = done.getByRole("button", { name: /^Move / });
+  await onlyHandle.press("Space");
+  await expect(onlyHandle).toHaveAttribute("aria-pressed", "true");
+  await expect(done).toHaveClass(/is-over/);
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Space");
+  await expect(page.locator(".drag-preview")).toHaveCount(0);
+  await expect(onlyHandle).toBeFocused();
+  await expectCardOrder(done, ["c1"]);
+
+  await pointerMove(page, "c2", "Done");
+  await expectCardOrder(done, ["c1", "c2"]);
+  const secondHandle = done.getByTestId("card-c2").getByRole("button", { name: /^Move / });
+  await secondHandle.press("Space");
+  await expect(secondHandle).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(() => done.getByTestId("card-c1").evaluate(card => card.style.transform)).toContain("translate3d");
+  await page.keyboard.press("Space");
+  await expectCardOrder(done, ["c2", "c1"]);
+  await expect(secondHandle).toBeFocused();
   await expect(page.getByRole("article")).toHaveCount(10);
-  await expect(page.getByTestId("card-c1")).toContainText("Explore a quieter layout");
+  await expect(done.getByTestId("card-c1")).toContainText("Explore a quieter layout");
 });
 
-test("moves with keyboard, cancels a drag, and preserves card count", async ({ page }) => {
-  await keyboardMove(page, "Give the homepage a fresh start", "Planned");
-  await expect(page.getByRole("region", { name: "Planned column", exact: true }).getByTestId("card-c1")).toBeVisible();
-  await keyboardMove(page, "Give the homepage a fresh start", "In progress", true);
-  await expect(page.getByRole("region", { name: "Planned column", exact: true }).getByTestId("card-c1")).toBeVisible();
+test("appends, cancels, and reorders by keyboard after scrolling, then resets on reload", async ({ page }, testInfo) => {
+  const ideas = page.getByRole("region", { name: "Ideas column", exact: true });
+  const planned = page.getByRole("region", { name: "Planned column", exact: true });
+  const handle = planned.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  const title = "Give the homepage a fresh start";
+  await keyboardMove(page, title, "Planned");
+  await expectCardOrder(planned, ["c4", "c5", "c1"]);
+  await expectCardOrder(ideas, ["c2", "c3"]);
+  await expect(handle).toBeFocused();
+  await keyboardMove(page, title, "In progress", true);
+  await expectCardOrder(planned, ["c4", "c5", "c1"]);
+
+  if (testInfo.project.name === "mobile") {
+    const scroll = page.getByLabel("Project board columns");
+    await expect.poll(() => scroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+  }
+  await expect(handle).toBeInViewport();
+  await handle.press("Space");
+  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(() => planned.getByTestId("card-c5").evaluate(card => card.style.transform)).toContain("translate3d");
+  await page.keyboard.press("Space");
+  await expectCardOrder(planned, ["c4", "c1", "c5"]);
+  await expect(handle).toBeFocused();
   await expect(page.getByRole("article")).toHaveCount(12);
+
+  await page.reload();
+  await expectCardOrder(ideas, ["c1", "c2", "c3"]);
+  await expectCardOrder(planned, ["c4", "c5"]);
+  await expect(page.getByRole("article")).toHaveCount(12);
+});
+
+test("announces sorting a new card using its title, renamed column, and position", async ({ page }) => {
+  await addCard(page, "Ideas", "Write release notes");
+  await page.getByRole("button", { name: "Rename Ideas", exact: true }).click();
+  const columnName = page.getByRole("textbox", { name: "Column name", exact: true });
+  await columnName.fill("Incoming");
+  await columnName.press("Enter");
+
+  const incoming = page.getByRole("region", { name: "Incoming column", exact: true });
+  const handle = incoming.getByRole("button", { name: "Move Write release notes", exact: true });
+  const liveRegion = page.getByRole("status").and(page.locator("[aria-live=assertive]"));
+  await handle.press("Space");
+  await expect(incoming).toHaveClass(/is-over/);
+  await expect(liveRegion).toHaveText("Picked up Write release notes in Incoming, position 4 of 4.");
+  await page.keyboard.press("ArrowUp");
+  await expect(liveRegion).toHaveText("Moving Write release notes to Incoming, position 3 of 4.");
+  await page.keyboard.press("Space");
+  await expect(liveRegion).toHaveText("Dropped Write release notes in Incoming, position 3 of 4.");
+  await expect(incoming.getByRole("article").nth(2)).toContainText("Write release notes");
+  await expect(handle).toBeFocused();
+
+  await handle.press("Space");
+  await expect(incoming).toHaveClass(/is-over/);
+  await page.keyboard.press("ArrowRight");
+  await expect(liveRegion).toHaveText("Moving Write release notes to Planned, position 3 of 3.");
+  await page.keyboard.press("Escape");
+  await expect(liveRegion).toHaveText("Cancelled moving Write release notes. It remains in Incoming, position 3 of 4.");
+  await expect(incoming.getByRole("article").nth(2)).toContainText("Write release notes");
 });
 
 test("handles a complete workflow and resets everything on reload", async ({ page }) => {
