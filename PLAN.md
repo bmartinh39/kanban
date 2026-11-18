@@ -2,6 +2,15 @@
 
 Scope: one client-rendered board, exactly five renameable columns, and cards containing only a title and details. Users can add cards, delete cards, and drag cards between columns. State lives in memory and resets to dummy data on reload. No accounts, backend, persistence, search, filters, or archive.
 
+## Current status (2026-11-18)
+
+- MVP complete; all five phases are checked off. No outstanding implementation or test blockers.
+- Application committed as `e76d907` (`Build polished single-board Kanban MVP with automated tests`) and pushed to `main` at https://github.com/bmartinh39/kanban. Local `main` tracks `origin/main`.
+- Latest checks: lint, TypeScript, 26 unit/component tests, production build, and all 30 Playwright scenarios pass. The latest browser run used the development server; Firefox passes when browser processes run outside the restricted sandbox.
+- Development server at http://localhost:3000 returned HTTP 200 during this status update. Restart with `cd frontend` then `npm run dev` if needed.
+- Known maintenance item: the earlier dependency audit reported seven moderate advisories in transitive development lint dependencies; the production dependency audit was clean. The audit was not rerun for this documentation update.
+- Requirements remain in `AGENTS.md`; setup and test commands are in `README.md`. This status update changes documentation only and has not yet been committed or pushed.
+
 ## Phase 1: Scaffold and tooling
 
 - [x] Check the available Node.js environment and verify current stable library releases against official sources before installing.
@@ -55,7 +64,7 @@ Success criteria: all Playwright scenarios pass; desktop and mobile layouts have
 Success criteria: the complete MVP meets the stated scope, all required checks pass, and the user can open the running application. Implementation is complete only after these conditions are verified.
 
 
-## Verification results
+## Initial verification results
 
 - Implemented in `frontend` with Next.js 16.4.6 and React 19.3.0; dependencies are locked. ESLint 9 and jsdom 29 are the compatible releases for the installed Next.js plugins and Node.js 24.11 environment.
 - Lint, TypeScript checks, and production build pass.
@@ -63,7 +72,7 @@ Success criteria: the complete MVP meets the stated scope, all required checks p
 - All 30 Playwright scenarios pass against the production build across desktop Chromium, Firefox, and mobile Chromium. Desktop/mobile screenshots were visually reviewed.
 - Fixed dialog autofocus, focus return, keyboard focus cycling, and keyboard dragging across a horizontally scrolling board. Browser tests verify those behaviors.
 - Production dependency audit is clean. npm reports seven moderate advisories in transitive development lint dependencies; available automatic fixes did not resolve them.
-- Production server left running at http://127.0.0.1:3000; HTTP readiness verified. The separate in-app preview browser could not open because its access host is unavailable; Playwright browser verification completed successfully.
+- At the initial handoff, the production server was left running at http://127.0.0.1:3000; HTTP readiness was verified. The separate in-app preview browser could not open because its access host was unavailable; Playwright browser verification completed successfully. See Current status for the latest server check.
 
 ### Review follow-up
 
