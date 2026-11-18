@@ -107,6 +107,7 @@ test("ignores keyboard boundary moves and cancels a sorting preview with focus r
   for (const [handle, direction] of [[first, "ArrowUp"], [last, "ArrowDown"]] as const) {
     await handle.press("Space");
     await expect(handle).toHaveAttribute("aria-pressed", "true");
+    await expect(ideas).toHaveClass(/is-over/);
     await page.keyboard.press(direction);
     await page.keyboard.press("Space");
     await expect(page.locator(".drag-preview")).toHaveCount(0);

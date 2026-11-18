@@ -199,6 +199,35 @@ test("appends, cancels, and reorders by keyboard after scrolling, then resets on
   await expect(page.getByRole("article")).toHaveCount(12);
 });
 
+test("announces sorting a new card using its title, renamed column, and position", async ({ page }) => {
+  await addCard(page, "Ideas", "Write release notes");
+  await page.getByRole("button", { name: "Rename Ideas", exact: true }).click();
+  const columnName = page.getByRole("textbox", { name: "Column name", exact: true });
+  await columnName.fill("Incoming");
+  await columnName.press("Enter");
+
+  const incoming = page.getByRole("region", { name: "Incoming column", exact: true });
+  const handle = incoming.getByRole("button", { name: "Move Write release notes", exact: true });
+  const liveRegion = page.getByRole("status").and(page.locator("[aria-live=assertive]"));
+  await handle.press("Space");
+  await expect(incoming).toHaveClass(/is-over/);
+  await expect(liveRegion).toHaveText("Picked up Write release notes in Incoming, position 4 of 4.");
+  await page.keyboard.press("ArrowUp");
+  await expect(liveRegion).toHaveText("Moving Write release notes to Incoming, position 3 of 4.");
+  await page.keyboard.press("Space");
+  await expect(liveRegion).toHaveText("Dropped Write release notes in Incoming, position 3 of 4.");
+  await expect(incoming.getByRole("article").nth(2)).toContainText("Write release notes");
+  await expect(handle).toBeFocused();
+
+  await handle.press("Space");
+  await expect(incoming).toHaveClass(/is-over/);
+  await page.keyboard.press("ArrowRight");
+  await expect(liveRegion).toHaveText("Moving Write release notes to Planned, position 3 of 3.");
+  await page.keyboard.press("Escape");
+  await expect(liveRegion).toHaveText("Cancelled moving Write release notes. It remains in Incoming, position 3 of 4.");
+  await expect(incoming.getByRole("article").nth(2)).toContainText("Write release notes");
+});
+
 test("handles a complete workflow and resets everything on reload", async ({ page }) => {
   await addCard(page, "Ideas", "Session task", "Session details");
   await keyboardMove(page, "Session task", "Planned");

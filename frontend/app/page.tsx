@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useId, useReducer, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useReducer, useRef, useState } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDndContext, useDroppable, useSensor, useSensors, type DragCancelEvent, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, hasSortableData, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { ArrowDownRight, ArrowUpRight, Check, Columns3, GripVertical, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
 import { columnCoordinates } from "./keyboard-coordinates";
 import { boardCollisionDetection } from "./drag-collision";
+import { createDragAnnouncements, getCardMove } from "./drag-announcements";
 import { boardReducer, initialBoard, type Card, type Column } from "./board-state";
 
 
@@ -113,17 +114,13 @@ export default function Home() {
       requestAnimationFrame(() => target.scrollIntoView({ block: "nearest", inline: "nearest" }));
     }
   }
-  function handleDragEnd({ active, over }: DragEndEvent) {
-    if (over?.data.current) {
-      const columnId = String(over.data.current.columnId);
-      const move = { type: "move" as const, cardId: String(active.id), columnId };
-      dispatch(columnId === active.data.current?.columnId && hasSortableData(over)
-        ? { ...move, index: over.data.current.sortable.index }
-        : move);
-    }
+  function handleDragEnd(event: DragEndEvent) {
+    const move = getCardMove(event);
+    if (move) dispatch(move);
     setActiveId(null);
   }
 
+  const announcements = useMemo(() => createDragAnnouncements(board), [board]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: columnCoordinates, scrollBehavior: "auto" }));
   const activeCard = board.flatMap(column => column.cards).find(card => card.id === activeId);
   const total = board.reduce((sum, column) => sum + column.cards.length, 0);
@@ -140,7 +137,7 @@ export default function Home() {
         onDragStart={event => setActiveId(String(event.active.id))}
         onDragCancel={handleDragCancel}
         onDragEnd={handleDragEnd}
-        accessibility={{ screenReaderInstructions: { draggable: "Press Space to pick up a card. Use Up and Down to reorder it within its column. Use Left and Right to move it to another column. Press Space to drop, or Escape to cancel." } }}
+        accessibility={{ announcements, screenReaderInstructions: { draggable: "Press Space to pick up a card. Use Up and Down to reorder it within its column. Use Left and Right to move it to another column. Press Space to drop, or Escape to cancel." } }}
       >
         <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={cardId => dispatch({ type: "delete", cardId })} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div></div>
         <DragOverlay>{activeCard && <div className="task-card drag-preview"><div className="card-tools"><GripVertical size={16} /></div><CardContent card={activeCard} /></div>}</DragOverlay>

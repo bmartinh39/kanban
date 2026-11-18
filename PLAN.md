@@ -23,8 +23,9 @@ Success criteria: each issue's acceptance criteria and relevant unit/browser tes
 
 ### Issue #1 verification
 
-- Lint, TypeScript, the production build, and all 50 unit and component tests passed. Configured line coverage reached 91.33%.
-- All 42 Playwright cases passed across desktop Chromium, Firefox, and mobile Chromium. Same-column pointer sorting ran at each browser project's default viewport, including 390px mobile width.
+- Lint, TypeScript, the production build, and all 56 unit and component tests passed. Configured line coverage reached 97.45%.
+- All 45 Playwright cases passed with zero skips across desktop Chromium, Firefox, and mobile Chromium. Same-column pointer sorting ran at each browser project's default viewport, including 390px mobile width.
+- Drag announcements give the card title, current column name, and one-based position and count. A browser regression uses a newly created card in a renamed column.
 - The browser suite verifies keyboard boundaries, focus after drop and cancellation, cancellation and outside release after a preview, transfers to populated and empty columns, reordering on a scrolled board, and the reload reset. Desktop and mobile screenshots show the moving overlay, destination highlight, and shifted cards.
 - The feature's production server returned HTTP 200 at http://127.0.0.1:3100.
 

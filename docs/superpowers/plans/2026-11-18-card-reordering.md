@@ -31,7 +31,8 @@
 ## File Responsibilities
 
 - `frontend/app/board-state.ts`: immutable indexed reorder operation.
-- `frontend/app/page.tsx`: sortable contexts/cards, drop resolution, focus, and accessible instructions.
+- `frontend/app/page.tsx`: sortable contexts/cards, focus, accessible instructions, and drag event handling.
+- `frontend/app/drag-announcements.ts`: shared drop resolution and accessible drag announcements.
 - `frontend/app/keyboard-coordinates.ts`: card-aware vertical and column-aware horizontal coordinates.
 - `frontend/app/drag-collision.ts` (new): resolve card versus column targets without masking cards.
 - `frontend/package.json`, `frontend/package-lock.json`: compatible sortable dependencies.
@@ -72,15 +73,17 @@
 - [x] Preserve and extend populated/empty cross-column cases to assert append order, then reorder in the new column. Verify reload restores the seed. Existing creation/deletion/rename tests remain regression coverage.
 - [x] Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:e2e`, and `npm run build` from `frontend`. Require zero failed tests/checks; browser tests cover Chromium, Firefox, and mobile Chromium. Use authorized browser execution outside the restricted sandbox for Firefox.
 - [x] Review desktop/mobile sorting feedback and the diff, address findings, and rerun affected checks.
-- [ ] Complete an independent final review using the execution workflow chosen by the user.
+- [x] Address final review findings: announce drag positions by title and column name, and wait for the Ideas highlight before testing keyboard boundaries.
+- [ ] Complete the scoped re-review of the final fixes.
 - [x] Update this plan and `PLAN.md` with actual results; do not mark the issue complete until every acceptance criterion passes. Leave a local server running and verify HTTP readiness.
 - [x] Commit the verified implementation and documentation.
 - [ ] Present the branch and test results for the user's integration decision. The branch remains unmerged and GitHub issue #1 remains open.
 
 ## Verification on the feature branch
 
-- Lint, TypeScript, 50 unit and component tests, and the production build passed.
-- All 42 browser cases passed with zero skipped, 14 each in desktop Chromium, Firefox, and mobile Chromium. Playwright ran against the feature server on port 3100.
+- Lint, TypeScript, 56 unit and component tests, and the production build passed.
+- All 45 browser cases passed with zero skipped, 15 each in desktop Chromium, Firefox, and mobile Chromium. Playwright ran against the feature server on port 3100.
+- The live-region test covers a newly created card in a renamed column, its reorder and drop position, cross-column append preview, and cancellation. Unit tests also cover empty destinations and outside drops.
 - Desktop and native-width mobile sorting screenshots were reviewed. They showed a displaced neighbor, an outlined destination column, and a drag overlay.
 - Mobile keyboard cancellation now brings the focused handle back into view when the preview scrolled to a different column. The browser test verifies focus and visibility before immediately reusing the handle.
 - The feature's production server returned HTTP 200 at http://127.0.0.1:3100.

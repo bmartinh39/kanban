@@ -1,6 +1,6 @@
 # Issue #1: Card reordering
 
-Status: approved on 2026-11-18 and verified on `feat/issue-1-card-reordering`. The branch remains unmerged and the issue is open.
+Status: approved on 2026-11-18 and verified on `feat/issue-1-card-reordering`. Scoped re-review of the final fixes and integration are pending. The branch remains unmerged and the issue is open.
 
 Issue: https://github.com/bmartinh39/kanban/issues/1
 
@@ -16,7 +16,7 @@ Allow users to reorder cards within a column using the existing drag handle, wit
 ## Proposed behavior
 
 - Pointer: drag a card to the beginning, middle, or end of its current column. Neighboring cards shift to preview its new position; releasing commits the order.
-- Keyboard: Space picks up/drops a card; Up/Down moves it one position within the column; Left/Right retains movement between columns; Escape cancels. Update accessible instructions and keep keyboard focus on the moved card's handle after dropping.
+- Keyboard: Space picks up/drops a card; Up/Down moves it one position within the column; Left/Right retains movement between columns; Escape cancels. Provide accessible instructions and announce the card title, current column name, and one-based position and count on pickup, target change, drop, and cancellation. Outside drops and cancellations announce the saved position. Keep keyboard focus on the moved card's handle after dropping.
 - Up/Down at a list boundary does nothing. Dropping outside a valid target or cancelling leaves the saved order unchanged.
 - Cross-column moves continue to append to the destination, including empty columns, as in the current app. Positioning a card within its destination is available through same-column reordering afterward.
 - Reloading restores the original dummy data, as today.
@@ -29,4 +29,4 @@ Retain a board-aware keyboard coordinate getter: vertical keys select neighborin
 
 ## Verification
 
-Write failing tests before implementation. Reducer tests cover first/middle/last placement, boundaries/no-ops, immutability, and preserved content/counts. Browser tests verify pointer and keyboard ordering, cancellation, focus, and cross-column moves into populated and empty columns across desktop Chromium, Firefox, and mobile Chromium. Synchronize tests on visible drag feedback rather than fixed delays. Run lint, type checking, the full unit/browser suites, and a production build. Update `PLAN.md` with results and leave the app running.
+Write failing tests before implementation. Reducer tests cover first/middle/last placement, boundaries/no-ops, immutability, and preserved content/counts. Browser tests verify pointer and keyboard ordering, cancellation, focus, and cross-column moves into populated and empty columns across desktop Chromium, Firefox, and mobile Chromium. Synchronize tests on visible drag feedback rather than fixed delays. Run lint, type checking, the full unit/browser suites, and a production build. Update `PLAN.md` with results and leave the app running. The final fixes passed 56 unit and component tests and 45 browser cases with zero skips, including live-region assertions for a newly created card in a renamed column.

@@ -7,6 +7,6 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
-    coverage: { provider: "v8", include: ["app/board-state.ts", "app/page.tsx", "app/keyboard-coordinates.ts", "app/drag-collision.ts"], thresholds: { lines: 90, functions: 90, branches: 85, statements: 90 } },
+    coverage: { provider: "v8", include: ["app/board-state.ts", "app/page.tsx", "app/keyboard-coordinates.ts", "app/drag-collision.ts", "app/drag-announcements.ts"], thresholds: { lines: 90, functions: 90, branches: 85, statements: 90 } },
   },
 });
