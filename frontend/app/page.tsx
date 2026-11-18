@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useReducer, useRef, useState } from "react";
-import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDndContext, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDndContext, useDroppable, useSensor, useSensors, type DragCancelEvent, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, hasSortableData, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { ArrowDownRight, ArrowUpRight, Check, Columns3, GripVertical, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
 import { columnCoordinates } from "./keyboard-coordinates";
@@ -105,6 +105,14 @@ export default function Home() {
     setAddingTo(null);
     requestAnimationFrame(() => addTrigger.current?.focus());
   }
+  function handleDragCancel({ activatorEvent }: DragCancelEvent) {
+    setActiveId(null);
+    const target = activatorEvent.target;
+    if (activatorEvent instanceof KeyboardEvent && target instanceof HTMLElement) {
+      // The handle may still have focus while the board is scrolled to another column.
+      requestAnimationFrame(() => target.scrollIntoView({ block: "nearest", inline: "nearest" }));
+    }
+  }
   function handleDragEnd({ active, over }: DragEndEvent) {
     if (over?.data.current) {
       const columnId = String(over.data.current.columnId);
@@ -130,7 +138,7 @@ export default function Home() {
         sensors={sensors}
         collisionDetection={args => boardCollisionDetection(args, boardViewport.current?.getBoundingClientRect())}
         onDragStart={event => setActiveId(String(event.active.id))}
-        onDragCancel={() => setActiveId(null)}
+        onDragCancel={handleDragCancel}
         onDragEnd={handleDragEnd}
         accessibility={{ screenReaderInstructions: { draggable: "Press Space to pick up a card. Use Up and Down to reorder it within its column. Use Left and Right to move it to another column. Press Space to drop, or Escape to cancel." } }}
       >

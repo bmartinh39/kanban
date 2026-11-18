@@ -2,24 +2,31 @@
 
 Original MVP scope: one client-rendered board, exactly five renameable columns, and cards containing only a title and details. Users can add cards, delete cards, and drag cards between columns. State lives in memory and resets to dummy data on reload. No accounts, backend, persistence, search, filters, or archive. Follow-up requirements are tracked below and do not change the completed MVP checklist.
 
-## Current status (2026-11-18)
+## MVP baseline (2026-11-18)
 
 - MVP complete; all five phases are checked off. No outstanding implementation or test blockers.
 - Application committed as `e76d907` (`Build polished single-board Kanban MVP with automated tests`) and pushed to `main` at https://github.com/bmartinh39/kanban. Local `main` tracks `origin/main`.
 - Latest checks: lint, TypeScript, 26 unit/component tests, production build, and all 30 Playwright scenarios pass. The latest browser run used the development server; Firefox passes when browser processes run outside the restricted sandbox.
 - Development server at http://localhost:3000 returned HTTP 200 during this status update. Restart with `cd frontend` then `npm run dev` if needed.
 - Known maintenance item: the earlier dependency audit reported seven moderate advisories in transitive development lint dependencies; the production dependency audit was clean. The audit was not rerun for this documentation update.
-- Requirements remain in `AGENTS.md`; setup and test commands are in `README.md`. This status update changes documentation only and has not yet been committed or pushed.
+- Requirements remain in `AGENTS.md`; setup and test commands are in `README.md`.
 
 ## Follow-up backlog
 
-GitHub Issues is the source of truth for actionable work. These requirements are recorded but not implemented:
+GitHub Issues tracks outstanding follow-up work.
 
-- [ ] [#1: Reorder cards within the same column](https://github.com/bmartinh39/kanban/issues/1). User approved the [sortable design](docs/superpowers/specs/2026-11-18-card-reordering-design.md); [implementation plan](docs/superpowers/plans/2026-11-18-card-reordering.md) is ready for review and execution-method selection. No implementation changes yet.
+- [ ] [#1: Reorder cards within the same column](https://github.com/bmartinh39/kanban/issues/1). Implemented and verified on `feat/issue-1-card-reordering`. The branch remains unmerged and the issue is open. See the [approved design](docs/superpowers/specs/2026-11-18-card-reordering-design.md) and [verification checklist](docs/superpowers/plans/2026-11-18-card-reordering.md).
 - [ ] [#2: AI assistant to create, edit, and move cards](https://github.com/bmartinh39/kanban/issues/2). Agree the assistant interface and access to in-memory board state before choosing a provider or architecture; this may extend the client-only MVP design.
 - [ ] [#3: Create new lists](https://github.com/bmartinh39/kanban/issues/3). Replace the fixed-five-column constraint with dynamic lists; keep the existing five lists as initial dummy data.
 
 Success criteria: each issue's acceptance criteria and relevant unit/browser tests pass before it is closed. Persistence, list deletion, and additional boards are not included in these requests. The original requirements in `AGENTS.md` describe the MVP baseline; the new-lists issue explicitly supersedes its fixed-column restriction for follow-up implementation.
+
+### Issue #1 verification
+
+- Lint, TypeScript, the production build, and all 50 unit and component tests passed. Configured line coverage reached 91.33%.
+- All 42 Playwright cases passed across desktop Chromium, Firefox, and mobile Chromium. Same-column pointer sorting ran at each browser project's default viewport, including 390px mobile width.
+- The browser suite verifies keyboard boundaries, focus after drop and cancellation, cancellation and outside release after a preview, transfers to populated and empty columns, reordering on a scrolled board, and the reload reset. Desktop and mobile screenshots show the moving overlay, destination highlight, and shifted cards.
+- The feature's production server returned HTTP 200 at http://127.0.0.1:3100.
 
 ## Phase 1: Scaffold and tooling
 
@@ -82,7 +89,7 @@ Success criteria: the complete MVP meets the stated scope, all required checks p
 - All 30 Playwright scenarios pass against the production build across desktop Chromium, Firefox, and mobile Chromium. Desktop/mobile screenshots were visually reviewed.
 - Fixed dialog autofocus, focus return, keyboard focus cycling, and keyboard dragging across a horizontally scrolling board. Browser tests verify those behaviors.
 - Production dependency audit is clean. npm reports seven moderate advisories in transitive development lint dependencies; available automatic fixes did not resolve them.
-- At the initial handoff, the production server was left running at http://127.0.0.1:3000; HTTP readiness was verified. The separate in-app preview browser could not open because its access host was unavailable; Playwright browser verification completed successfully. See Current status for the latest server check.
+- At the initial handoff, the production server was left running at http://127.0.0.1:3000; HTTP readiness was verified. The separate in-app preview browser could not open because its access host was unavailable; Playwright browser verification completed successfully. See the MVP baseline for the later development-server check.
 
 ### Review follow-up
 

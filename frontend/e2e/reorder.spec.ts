@@ -39,10 +39,11 @@ async function keyboardReorder(page: Page, direction: "ArrowDown" | "ArrowUp", t
   await expect(handle).toBeFocused();
 }
 
-async function pointerReorder(page: Page, targetId: string) {
+async function pointerReorder(page: Page, targetId: string, screenshot?: string) {
   const handle = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
   const target = page.getByTestId(targetId);
-  await target.scrollIntoViewIfNeeded();
+  // Keep the drop point clear of the viewport's auto-scroll edge.
+  await target.evaluate(card => card.scrollIntoView({ block: "center", inline: "nearest" }));
   const [from, to] = await Promise.all([handle.boundingBox(), target.boundingBox()]);
   const x = from!.x + from!.width / 2;
   const y = from!.y + from!.height / 2;
@@ -50,8 +51,9 @@ async function pointerReorder(page: Page, targetId: string) {
   await page.mouse.down();
   await page.mouse.move(x + 8, y);
   await expect(handle).toHaveAttribute("aria-pressed", "true");
-  await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 10 });
+  await page.mouse.move(x, to!.y + to!.height / 2, { steps: 10 });
   await expectPreview(target);
+  if (screenshot) await page.screenshot({ path: screenshot, scale: "css" });
   await page.mouse.up();
   await expect(handle).not.toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".drag-preview")).toHaveCount(0);
@@ -81,17 +83,45 @@ test("keyboard reorders the same card to the middle, end, and start", async ({ p
 });
 
 test("pointer reorders between unequal-height cards without changing their contents", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "Mouse drag coverage");
   const ideas = page.getByRole("region", { name: "Ideas column", exact: true });
   const originalContent = await cardContent(ideas);
   const heights = await ideas.getByRole("article").evaluateAll(cards => cards.map(card => card.getBoundingClientRect().height));
   expect(new Set(heights).size).toBeGreaterThan(1);
   await expectOrder(ideas, originalOrder);
-  await pointerReorder(page, "card-c2");
+  await pointerReorder(page, "card-c2", testInfo.outputPath("sorting-preview.png"));
   await expectOrder(ideas, middleOrder);
   await pointerReorder(page, "card-c3");
   await expectOrder(ideas, lastOrder);
   await pointerReorder(page, "card-c2");
+  await expectOrder(ideas, originalOrder);
+  expect(await cardContent(ideas)).toEqual(originalContent);
+  await expect(page.getByRole("article")).toHaveCount(12);
+});
+
+test("ignores keyboard boundary moves and cancels a sorting preview with focus restored", async ({ page }) => {
+  const ideas = page.getByRole("region", { name: "Ideas column", exact: true });
+  const originalContent = await cardContent(ideas);
+  const first = ideas.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  const last = ideas.getByTestId("card-c3").getByRole("button", { name: /^Move / });
+
+  for (const [handle, direction] of [[first, "ArrowUp"], [last, "ArrowDown"]] as const) {
+    await handle.press("Space");
+    await expect(handle).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press(direction);
+    await page.keyboard.press("Space");
+    await expect(page.locator(".drag-preview")).toHaveCount(0);
+    await expect(handle).toBeFocused();
+    await expectOrder(ideas, originalOrder);
+  }
+
+  await first.press("Space");
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("ArrowDown");
+  await expectPreview(ideas.getByTestId("card-c2"));
+  await expectOrder(ideas, originalOrder);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".drag-preview")).toHaveCount(0);
+  await expect(first).toBeFocused();
   await expectOrder(ideas, originalOrder);
   expect(await cardContent(ideas)).toEqual(originalContent);
   await expect(page.getByRole("article")).toHaveCount(12);
@@ -102,13 +132,16 @@ test("dropping in the gutter beside a clipped column leaves the order unchanged"
   const ideas = page.getByRole("region", { name: "Ideas column", exact: true });
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
   const scroll = page.getByLabel("Project board columns");
+  const originalContent = await cardContent(ideas);
   const handle = ideas.getByTestId("card-c1").getByRole("button", { name: /^Move / });
   await handle.scrollIntoViewIfNeeded();
 
-  const [source, board, clipped] = await Promise.all([
+  const target = ideas.getByTestId("card-c2");
+  const [source, board, clipped, nextCard] = await Promise.all([
     handle.boundingBox(),
     scroll.boundingBox(),
     planned.boundingBox(),
+    target.boundingBox(),
   ]);
   const x = source!.x + source!.width / 2;
   const y = source!.y + source!.height / 2;
@@ -122,10 +155,16 @@ test("dropping in the gutter beside a clipped column leaves the order unchanged"
   await page.mouse.move(x + 8, y);
   await expect(handle).toHaveAttribute("aria-pressed", "true");
   await expect(ideas).toHaveClass(/is-over/);
-  await page.mouse.move(gutterX, y, { steps: 10 });
+  const targetY = nextCard!.y + nextCard!.height / 2;
+  await page.mouse.move(x, targetY, { steps: 10 });
+  await expectPreview(target);
+  await page.mouse.move(gutterX, targetY, { steps: 10 });
+  await expect(ideas).not.toHaveClass(/is-over/);
   await page.mouse.up();
   await expect(page.locator(".drag-preview")).toHaveCount(0);
 
   await expectOrder(ideas, originalOrder);
   await expect(planned.getByTestId("card-c1")).toHaveCount(0);
+  expect(await cardContent(ideas)).toEqual(originalContent);
+  await expect(page.getByRole("article")).toHaveCount(12);
 });
