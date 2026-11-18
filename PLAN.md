@@ -23,6 +23,8 @@ Success criteria: each issue's acceptance criteria and relevant unit/browser tes
 
 ### Issue #1 verification
 
+- Independent task reviews, whole-branch review, and scoped re-review are complete. All findings were addressed, including readable screen-reader feedback and keyboard test readiness. The branch awaits the user's integration decision.
+
 - Lint, TypeScript, the production build, and all 56 unit and component tests passed. Configured line coverage reached 97.45%.
 - All 45 Playwright cases passed with zero skips across desktop Chromium, Firefox, and mobile Chromium. Same-column pointer sorting ran at each browser project's default viewport, including 390px mobile width.
 - Drag announcements give the card title, current column name, and one-based position and count. A browser regression uses a newly created card in a renamed column.

@@ -74,10 +74,10 @@
 - [x] Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:e2e`, and `npm run build` from `frontend`. Require zero failed tests/checks; browser tests cover Chromium, Firefox, and mobile Chromium. Use authorized browser execution outside the restricted sandbox for Firefox.
 - [x] Review desktop/mobile sorting feedback and the diff, address findings, and rerun affected checks.
 - [x] Address final review findings: announce drag positions by title and column name, and wait for the Ideas highlight before testing keyboard boundaries.
-- [ ] Complete the scoped re-review of the final fixes.
+- [x] Complete the scoped re-review of the final fixes. Both findings were addressed; no new breakage was found.
 - [x] Update this plan and `PLAN.md` with actual results; do not mark the issue complete until every acceptance criterion passes. Leave a local server running and verify HTTP readiness.
 - [x] Commit the verified implementation and documentation.
-- [ ] Present the branch and test results for the user's integration decision. The branch remains unmerged and GitHub issue #1 remains open.
+- [x] Present the branch and test results for the user's integration decision. The branch remains unmerged and GitHub issue #1 remains open.
 
 ## Verification on the feature branch
 
