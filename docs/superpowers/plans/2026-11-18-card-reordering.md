@@ -77,7 +77,7 @@
 - [x] Complete the scoped re-review of the final fixes. Both findings were addressed; no new breakage was found.
 - [x] Update this plan and `PLAN.md` with actual results; do not mark the issue complete until every acceptance criterion passes. Leave a local server running and verify HTTP readiness.
 - [x] Commit the verified implementation and documentation.
-- [x] Present the branch and test results for the user's integration decision. The branch remains unmerged and GitHub issue #1 remains open.
+- [x] Present the branch and test results for the user's integration decision. The branch is pushed with [PR #4](https://github.com/bmartinh39/kanban/pull/4) open against main. Issue #1 is closed as completed at the user request; merge is pending.
 
 ## Verification on the feature branch
 

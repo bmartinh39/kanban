@@ -15,7 +15,7 @@ Original MVP scope: one client-rendered board, exactly five renameable columns, 
 
 GitHub Issues tracks outstanding follow-up work.
 
-- [ ] [#1: Reorder cards within the same column](https://github.com/bmartinh39/kanban/issues/1). Implemented and verified on `feat/issue-1-card-reordering`. The branch remains unmerged and the issue is open. See the [approved design](docs/superpowers/specs/2026-11-18-card-reordering-design.md) and [verification checklist](docs/superpowers/plans/2026-11-18-card-reordering.md).
+- [x] [#1: Reorder cards within the same column](https://github.com/bmartinh39/kanban/issues/1). Implemented and verified on `feat/issue-1-card-reordering`. Issue #1 is closed as completed at the user request; [PR #4](https://github.com/bmartinh39/kanban/pull/4) is open against `main` and awaits merge. See the [approved design](docs/superpowers/specs/2026-11-18-card-reordering-design.md) and [verification checklist](docs/superpowers/plans/2026-11-18-card-reordering.md).
 - [ ] [#2: AI assistant to create, edit, and move cards](https://github.com/bmartinh39/kanban/issues/2). Agree the assistant interface and access to in-memory board state before choosing a provider or architecture; this may extend the client-only MVP design.
 - [ ] [#3: Create new lists](https://github.com/bmartinh39/kanban/issues/3). Replace the fixed-five-column constraint with dynamic lists; keep the existing five lists as initial dummy data.
 

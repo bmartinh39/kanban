@@ -1,6 +1,6 @@
 # Issue #1: Card reordering
 
-Status: approved on 2026-11-18 and verified on `feat/issue-1-card-reordering`. Independent reviews and the final scoped re-review are complete. Integration is pending. The branch remains unmerged and the issue is open.
+Status: approved on 2026-11-18 and verified on `feat/issue-1-card-reordering`. Independent reviews and the final scoped re-review are complete. Integration is pending. Issue #1 is closed as completed at the user request; [PR #4](https://github.com/bmartinh39/kanban/pull/4) is open against `main` and awaits merge.
 
 Issue: https://github.com/bmartinh39/kanban/issues/1
 
