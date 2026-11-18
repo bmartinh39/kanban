@@ -1,6 +1,6 @@
 # Kanban MVP implementation plan
 
-Scope: one client-rendered board, exactly five renameable columns, and cards containing only a title and details. Users can add cards, delete cards, and drag cards between columns. State lives in memory and resets to dummy data on reload. No accounts, backend, persistence, search, filters, or archive.
+Original MVP scope: one client-rendered board, exactly five renameable columns, and cards containing only a title and details. Users can add cards, delete cards, and drag cards between columns. State lives in memory and resets to dummy data on reload. No accounts, backend, persistence, search, filters, or archive. Follow-up requirements are tracked below and do not change the completed MVP checklist.
 
 ## Current status (2026-11-18)
 
@@ -10,6 +10,16 @@ Scope: one client-rendered board, exactly five renameable columns, and cards con
 - Development server at http://localhost:3000 returned HTTP 200 during this status update. Restart with `cd frontend` then `npm run dev` if needed.
 - Known maintenance item: the earlier dependency audit reported seven moderate advisories in transitive development lint dependencies; the production dependency audit was clean. The audit was not rerun for this documentation update.
 - Requirements remain in `AGENTS.md`; setup and test commands are in `README.md`. This status update changes documentation only and has not yet been committed or pushed.
+
+## Follow-up backlog
+
+GitHub Issues is the source of truth for actionable work. These requirements are recorded but not implemented:
+
+- [ ] [#1: Reorder cards within the same column](https://github.com/bmartinh39/kanban/issues/1). User approved the [sortable design](docs/superpowers/specs/2026-11-18-card-reordering-design.md); [implementation plan](docs/superpowers/plans/2026-11-18-card-reordering.md) is ready for review and execution-method selection. No implementation changes yet.
+- [ ] [#2: AI assistant to create, edit, and move cards](https://github.com/bmartinh39/kanban/issues/2). Agree the assistant interface and access to in-memory board state before choosing a provider or architecture; this may extend the client-only MVP design.
+- [ ] [#3: Create new lists](https://github.com/bmartinh39/kanban/issues/3). Replace the fixed-five-column constraint with dynamic lists; keep the existing five lists as initial dummy data.
+
+Success criteria: each issue's acceptance criteria and relevant unit/browser tests pass before it is closed. Persistence, list deletion, and additional boards are not included in these requests. The original requirements in `AGENTS.md` describe the MVP baseline; the new-lists issue explicitly supersedes its fixed-column restriction for follow-up implementation.
 
 ## Phase 1: Scaffold and tooling
 
