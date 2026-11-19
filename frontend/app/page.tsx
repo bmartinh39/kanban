@@ -7,7 +7,7 @@ import { ArrowDownRight, ArrowUpRight, Check, Columns3, GripVertical, LayoutGrid
 import { columnCoordinates } from "./keyboard-coordinates";
 import { boardCollisionDetection } from "./drag-collision";
 import { createDragAnnouncements, getCardMove } from "./drag-announcements";
-import { type Card, type Column } from "./board-state";
+import { boardReducer, type Card, type Column } from "./board-state";
 import { type BoardCommand } from "./board-commands";
 import { useBoard } from "./use-board";
 import { AssistantChat } from "./assistant-chat";
@@ -105,7 +105,9 @@ function AddCardDialog({ columnName, onClose, onAdd }: { columnName: string; onC
 
 export default function Home() {
   const storage = useBoard();
-  const board = storage.snapshot?.columns ?? emptyBoard;
+  const [dropPreview, setDropPreview] = useState<Column[] | null>(null);
+  const savedBoard = storage.snapshot?.columns ?? emptyBoard;
+  const board = dropPreview ?? savedBoard;
   function dispatch(action: BoardCommand) {
     void storage.save([action]).catch(() => {});
   }
@@ -144,10 +146,14 @@ export default function Home() {
     setActiveId(null);
     if (!move) return;
     if (event.activatorEvent instanceof KeyboardEvent) keyboardDrop.current = move.cardId;
+    // Commit the visual position before the overlay measures its landing target.
+    // Keep the saved snapshot/revision untouched until the server confirms the move.
+    setDropPreview(boardReducer(board, move));
     try { await storage.save([move]); } catch { /* The persistence hook shows recovery feedback. */ }
+    finally { setDropPreview(null); }
   }
 
-  const announcements = useMemo(() => createDragAnnouncements(board), [board]);
+  const announcements = useMemo(() => createDragAnnouncements(savedBoard), [savedBoard]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: columnCoordinates, scrollBehavior: "auto" }));
   const activeCard = board.flatMap(column => column.cards).find(card => card.id === activeId);
   const total = board.reduce((sum, column) => sum + column.cards.length, 0);

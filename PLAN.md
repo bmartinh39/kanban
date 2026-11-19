@@ -194,3 +194,22 @@ Success criteria: the complete MVP meets the stated scope, all required checks p
 - Keyboard browser tests now wait for the destination highlight after horizontal scrolling before dropping, rather than racing the asynchronous drop-target update.
 - All 30 browser tests pass against the development server across desktop Chromium, Firefox, and mobile Chromium. Firefox requires running the browser suite outside the restricted sandbox; its page-launch crashes do not reproduce there.
 - The local development server responds with HTTP 200 at http://localhost:3000.
+
+## Issue #6: Seamless card drops (2026-11-19)
+
+- [x] Reproduce and fix the return-to-origin animation for sorting and moves between columns.
+- [x] Show the dropped position while saving, keeping SQLite authoritative and existing conflict/error recovery intact.
+- [x] Add delayed-save browser regressions for pointer and keyboard drops; verify cancellation still works.
+- [x] Run lint, type checking, coverage, browser suites, production build, persistence checks, and diff review. Leave the local server available.
+
+Success criteria: a successful drop animates directly to its destination, never flashes at its source while saving, and sends only one revision-checked write. Failed saves recover from the server without replaying the move.
+
+Verification:
+
+- The overlay previously measured the card at its original saved position because the drop handler awaited the server. A local drop preview now updates the layout before landing measurement and remains visible while saving. The saved snapshot/revision and recovery path are unchanged; server confirmation or readback replaces the preview.
+- Lint, type checking, production build, and all 172 unit/component tests pass (98.63% line coverage).
+- All 72 controlled Playwright UI scenarios pass across Chromium, Firefox, and mobile Chromium. Added delayed-save tests verify actual animation landing coordinates, immediate destination order, unchanged saved revision while pending, one write, keyboard focus, and conflict recovery. Existing cancellation and outside-board tests pass.
+- All 12 production-server persistence browser scenarios pass against isolated temporary SQLite databases, including stale revisions and failed-save recovery. No live AI calls were made.
+- Browser plugin not available; used the existing Playwright workflow. Firefox required execution outside the restricted sandbox because its pages crash on launch inside it. Initial regression assertions were corrected to account for mobile scrolling and Next.js's separate alert element. Final UI and persistence runs completed separately to avoid sharing Playwright's artifact directory.
+- Desktop (1440 x 1000) and mobile (390 x 844) screenshots after a keyboard move were visually reviewed; the expected page title/content rendered, no framework overlay appeared, and console/runtime errors were absent. Screenshots are in the OS temporary directory, outside the repository.
+- `git diff --check` passes. Only the page, browser regressions, and this plan changed; no files or secrets are staged. Local server returned HTTP 200 at http://localhost:3000 and remains running.

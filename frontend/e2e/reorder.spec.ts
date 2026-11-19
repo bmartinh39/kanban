@@ -178,3 +178,125 @@ test("dropping in the gutter beside a clipped column leaves the order unchanged"
   expect(await cardContent(ideas)).toEqual(originalContent);
   await expect(page.getByRole("article")).toHaveCount(12);
 });
+
+for (const input of ["pointer", "keyboard"] as const) {
+  for (const destination of ["Ideas", "Planned"] as const) {
+    test(`${input} drop lands directly in ${destination} while the save is pending`, async ({ page, boardState }) => {
+      const errors: string[] = [];
+      page.on("pageerror", error => errors.push(error.message));
+      page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+      let release!: () => void;
+      const saving = new Promise<void>(resolve => { release = resolve; });
+      let writes = 0;
+      await page.route("**/api/board/actions", async route => {
+        writes++;
+        await saving;
+        await route.fallback();
+      });
+      // Record the real overlay animation endpoint, not just the eventual DOM order.
+      await page.evaluate(() => {
+        const animate = Element.prototype.animate;
+        Element.prototype.animate = function (...args) {
+          const animation = animate.apply(this, args);
+          const preview = this.querySelector(".drag-preview");
+          if (preview) {
+            const frames = (animation.effect as KeyframeEffect).getKeyframes();
+            const last = new DOMMatrix(String(frames.at(-1)!.transform));
+            const overlay = this as HTMLElement;
+            const wrapperBounds = this.getBoundingClientRect();
+            const previewBounds = preview.getBoundingClientRect();
+            // Keep the evidence after the transient overlay is removed.
+            document.body.dataset.landingX = String(parseFloat(overlay.style.left) + last.m41 + previewBounds.left - wrapperBounds.left);
+            document.body.dataset.landingY = String(parseFloat(overlay.style.top) + last.m42 + previewBounds.top - wrapperBounds.top);
+            const target = document.querySelector('[data-testid="card-c1"]')!.getBoundingClientRect();
+            document.body.dataset.targetX = String(target.x);
+            document.body.dataset.targetY = String(target.y);
+          }
+          return animation;
+        };
+      });
+      const targetColumn = page.getByRole("region", { name: `${destination} column`, exact: true });
+      const handle = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+      try {
+        if (input === "keyboard") {
+          await handle.press("Space");
+          await expect(handle).toHaveAttribute("aria-pressed", "true");
+          await page.keyboard.press(destination === "Ideas" ? "ArrowDown" : "ArrowRight");
+          if (destination === "Ideas") await expectPreview(page.getByTestId("card-c2"));
+          else await expect(targetColumn).toHaveClass(/is-over/);
+          await page.keyboard.press("Space");
+        } else if (destination === "Ideas") {
+          await pointerReorder(page, "card-c2");
+        } else {
+          await handle.scrollIntoViewIfNeeded();
+          const from = await handle.boundingBox();
+          const x = from!.x + from!.width / 2;
+          const y = from!.y + from!.height / 2;
+          await page.mouse.move(x, y);
+          await page.mouse.down();
+          await page.mouse.move(x + 8, y);
+          await expect(handle).toHaveAttribute("aria-pressed", "true");
+          await targetColumn.scrollIntoViewIfNeeded();
+          const target = await targetColumn.boundingBox();
+          const frame = await page.getByLabel("Project board columns").boundingBox();
+          // The column may be clipped on mobile. Drop only within its visible frame.
+          const left = Math.max(target!.x, frame!.x);
+          const right = Math.min(target!.x + target!.width, frame!.x + frame!.width);
+          await page.mouse.move((left + right) / 2, Math.min(target!.y + 80, frame!.y + frame!.height / 2), { steps: 10 });
+          await expect(targetColumn).toHaveClass(/is-over/);
+          await page.mouse.up();
+        }
+        await expect(page.locator(".save-status")).toHaveText("Saving...");
+        await expectOrder(targetColumn, destination === "Ideas" ? middleOrder : ["card-c4", "card-c5", "card-c1"]);
+        await expect(page.locator(".drag-preview")).toHaveCount(0);
+        const card = targetColumn.getByTestId("card-c1");
+        await expect(card).toHaveCSS("opacity", "1");
+        // Compare in the same frame: mobile scroll containers can continue scrolling.
+        const landing = await page.evaluate(() => ({
+          x: Number(document.body.dataset.landingX), y: Number(document.body.dataset.landingY),
+          targetX: Number(document.body.dataset.targetX), targetY: Number(document.body.dataset.targetY),
+        }));
+        expect(landing.x).toBeCloseTo(landing.targetX, 0);
+        expect(landing.y).toBeCloseTo(landing.targetY, 0);
+        expect(boardState.revision).toBe(0);
+        expect(writes).toBe(1);
+      } finally { release(); }
+      await expect(page.locator(".save-status")).toHaveText("Saved");
+      await expectOrder(targetColumn, destination === "Ideas" ? middleOrder : ["card-c4", "card-c5", "card-c1"]);
+      if (input === "keyboard") await expect(targetColumn.getByRole("button", { name: /^Move Give the homepage/ })).toBeFocused();
+      expect(boardState.revision).toBe(1);
+      expect(writes).toBe(1);
+      expect(errors).toEqual([]);
+    });
+  }
+}
+
+test("a rejected drop recovers the saved board without replaying the move", async ({ page, boardState }) => {
+  let release!: () => void;
+  const saving = new Promise<void>(resolve => { release = resolve; });
+  let writes = 0;
+  await page.route("**/api/board/actions", async route => {
+    writes++;
+    await saving;
+    // Another client has renamed the source column since our snapshot.
+    boardState.columns[0].name = "Latest ideas";
+    boardState.revision++;
+    await route.fulfill({ status: 409, json: { error: "The board changed. Reload and retry." } });
+  });
+  const handle = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  const planned = page.getByRole("region", { name: "Planned column", exact: true });
+  try {
+    await handle.press("Space");
+    await expect(handle).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("ArrowRight");
+    await expect(planned).toHaveClass(/is-over/);
+    await page.keyboard.press("Space");
+    await expect(planned.getByTestId("card-c1")).toHaveCount(1);
+    await expect(page.locator(".save-status")).toHaveText("Saving...");
+  } finally { release(); }
+  await expect(page.locator(".storage-error").getByRole("alert")).toHaveText("The board changed. Reload and retry.");
+  await expectOrder(page.getByRole("region", { name: "Latest ideas column", exact: true }), originalOrder);
+  await expectOrder(planned, ["card-c4", "card-c5"]);
+  await expect(page.locator(".drag-preview")).toHaveCount(0);
+  expect(writes).toBe(1);
+});
