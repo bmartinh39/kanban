@@ -1,6 +1,8 @@
 export type Card = { id: string; title: string; details: string };
 export type Column = { id: string; name: string; cards: Card[] };
 export type Action =
+  | { type: "create-list"; listId: string; name: string }
+  | { type: "delete-list"; columnId: string }
   | { type: "add"; columnId: string; card: Card }
   | { type: "delete"; cardId: string }
   | { type: "edit"; cardId: string; title?: string; details?: string }
@@ -35,6 +37,10 @@ export const initialBoard: Column[] = [
 
 export function boardReducer(board: Column[], action: Action): Column[] {
   switch (action.type) {
+    case "create-list":
+      return action.name.trim() ? [...board, { id: action.listId, name: action.name.trim(), cards: [] }] : board;
+    case "delete-list":
+      return board.filter(column => column.id !== action.columnId);
     case "assistant":
       return board === action.snapshot ? action.actions.reduce(boardReducer, board) : board;
     case "add":

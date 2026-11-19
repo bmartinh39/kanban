@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, test, visibleBoardFrame } from "./fixtures";
 
 const orders = [["c1", "c4", "c5"], ["c4", "c1", "c5"], ["c4", "c5", "c1"]];
 const column = (page: Page) => page.getByRole("region", { name: "Planned column", exact: true });
@@ -7,7 +7,8 @@ const handle = (page: Page) => page.getByTestId("card-c1").getByRole("button", {
 
 async function pointerStart(page: Page) {
   const source = handle(page);
-  await source.scrollIntoViewIfNeeded();
+  await source.evaluate(element => element.scrollIntoView({ block: "start" }));
+  await page.evaluate(() => window.scrollBy(0, -80));
   const bounds = (await source.boundingBox())!;
   const x = bounds.x + bounds.width / 2;
   const y = bounds.y + bounds.height / 2;
@@ -20,20 +21,20 @@ async function pointerStart(page: Page) {
 async function pointerSlot(page: Page, index: number) {
   const target = column(page).getByRole("article").nth(Math.min(index, 1));
   await target.evaluate(element => element.scrollIntoView({ block: "center", inline: "center" }));
-  await target.evaluate(element => {
+  await target.evaluate((element, index) => {
     // A previous preview can shift the rendered card beyond its actual layout slot.
-    const main = element.closest("main")!;
-    const frame = main.getBoundingClientRect();
+    const bottom = window.innerWidth <= 700 ? document.querySelector(".assistant-panel")!.getBoundingClientRect().top : window.innerHeight;
     const rect = element.getBoundingClientRect();
     const transform = new DOMMatrix(getComputedStyle(element).transform);
-    main.scrollTop += rect.y - transform.m42 + rect.height / 2 - frame.y - frame.height / 2;
-  });
+    const targetY = rect.y - transform.m42 + (index === 2 ? rect.height + 11 : rect.height / 4);
+    window.scrollBy(0, targetY - bottom / 2);
+  }, index);
   const bounds = await target.evaluate(element => {
     const rect = element.getBoundingClientRect();
     const matrix = new DOMMatrix(getComputedStyle(element).transform);
     return { x: rect.x - matrix.m41, y: rect.y - matrix.m42, width: rect.width, height: rect.height };
   });
-  const frame = (await page.locator("main").boundingBox())!;
+  const frame = await visibleBoardFrame(page);
   const viewport = (await page.getByLabel("Project board columns").boundingBox())!;
   const left = Math.max(bounds.x, viewport.x, frame.x);
   const right = Math.min(bounds.x + bounds.width, viewport.x + viewport.width, frame.x + frame.width);
@@ -125,8 +126,8 @@ for (const ending of ["cancel", "outside"] as const) {
     }
     if (ending === "cancel") await page.keyboard.press("Escape");
     else {
-      const frame = (await page.locator("main").boundingBox())!;
-      await page.mouse.move(frame.x + 5, frame.y - 5, { steps: 10 });
+      const frame = await visibleBoardFrame(page);
+      await page.mouse.move(frame.x - 5, frame.y + 5, { steps: 10 });
       await expect(column(page).locator(".insertion-preview")).toHaveCount(0);
     }
     await page.mouse.up();

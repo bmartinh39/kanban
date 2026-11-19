@@ -27,9 +27,10 @@ The requirements above describe the original MVP. These implemented follow-ups e
 
 - Cards can be reordered within a column using pointer or keyboard controls.
 - An in-app AI assistant can create cards, edit titles/details, and move cards between existing columns. It cannot delete cards or create lists.
-- The assistant stays visible on the right on desktop and below a separately scrolling board on narrow screens. Use icons and a visible AI label to identify it.
+- The assistant stays visible on the right on desktop and docked below the board on narrow screens. Lists wrap into responsive rows with normal vertical page scrolling; reserve space for the mobile assistant so it does not cover the final controls. Use icons and a visible AI label to identify it.
 - Issue #5 supersedes the MVP persistence restriction: the shared board is stored in SQLite and survives reloads and server/container restarts. Chat remains in memory and resets on reload. Deployments run a Next.js Node.js server rather than a static export.
-- New lists remain a separate backlog item. Keep the existing five columns until that issue is implemented.
+- Issue #3 supersedes the fixed-five constraint: users can create named lists through the board UI. Start with the same five dummy-data lists and persist additional lists through the revision-checked API. Every list has a delete icon and always requires confirmation, including empty lists. Confirmed deletion atomically removes its cards too. Use the approved centered desktop dialog and bottom sheet on mobile, with the project palette and fade-in/fade-out animation that respects reduced motion. Empty boards are allowed and never reseeded. The assistant cannot create or delete lists.
+- Ask the user to approve material design/interaction choices before implementing them (for example, choosing a mobile bottom sheet instead of a centered popup). Routine fixes within an already approved design can proceed.
 
 ## Assistant architecture and configuration
 
@@ -49,7 +50,7 @@ The requirements above describe the original MVP. These implemented follow-ups e
 - `npm run dev` and `npm start` migrate/seed before serving traffic. Seed dummy data only on first initialization; never reseed an emptied board. Builds must not open the deployment database.
 - Board mutations and assistant batches share the revision-checked transactional API. HTTP 409 means reload and review; never silently replay or overwrite stale changes. Keep drag previews local and save once on drop.
 - Use the backup command for live backups; restore into an empty volume while the app is stopped. Database files, sidecars, backups, and environment secrets must remain untracked.
-- Test with isolated temporary databases and controlled AI responses. No database reset endpoint or production test data. Chat persistence, accounts, live collaboration, and new lists remain outside issue #5.
+- Test with isolated temporary databases and controlled AI responses. No database reset endpoint or production test data. Chat persistence, accounts, and live collaboration remain outside issue #5; list creation is covered by issue #3.
 
 ## Verification commands
 

@@ -11,3 +11,6 @@ HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", 
 HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
 global.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 window.scrollTo = vi.fn();
+HTMLElement.prototype.scrollIntoView = vi.fn();
+// jsdom does not animate; browser regressions verify the actual entrance/exit.
+HTMLElement.prototype.getAnimations = () => [];

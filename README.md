@@ -1,8 +1,10 @@
 # Forma Kanban
 
-A single-board Next.js app with five renameable columns, card creation/deletion, pointer/keyboard sorting, and an AI assistant. The shared board persists in SQLite; chat resets on reload.
+A single-board Next.js app starting with five renameable lists, list/card creation and deletion, pointer/keyboard sorting, and an AI assistant. Lists wrap into rows with vertical page scrolling. The shared board persists in SQLite; chat resets on reload.
 
 Requires Node.js 24.11+ and npm.
+
+Use Add list to create a stage. Each list has a delete icon and asks for confirmation before deleting the list and its cards, using a desktop dialog or mobile bottom sheet.
 
 ```powershell
 cd frontend

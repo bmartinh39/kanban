@@ -1,5 +1,60 @@
 # Kanban MVP implementation plan
 
+## Follow-up: Confirmation for every list deletion
+
+- [x] Always confirm list deletion, including empty lists; do not mutate before explicit confirmation.
+- [x] Apply the approved centered desktop dialog/mobile bottom sheet with navy text, yellow accent, blue icon, purple actions, and fade-in/fade-out animation.
+- [x] Preserve scroll/focus, allow cancellation, and support reduced motion; verify only the affected flows.
+
+Verification (2026-11-19): all 18 focused browser cases pass across Chromium, Firefox, and mobile Chromium. Tests verify empty/populated confirmation, unchanged state before confirmation, animation names and palette, bottom-sheet placement, cancellation/focus return, saved deletion, reduced motion, and preserved below-fold scroll on success/failure/cancel. The 22 selected unit/component tests, lint, production build/TypeScript, and diff check pass. Reviewed desktop (1440 x 1000) and mobile (390 x 664) screenshots outside the repository as `kanban-delete-confirmation-chromium.png` and `kanban-delete-confirmation-mobile.png`. Browser plugin unavailable; used existing Playwright. Popup closure waits for CSS animations through the Web Animations API, then closes the native dialog before restoring focus or deleting. No live inference or user-board test mutations. Local app remains at http://localhost:3000; changes are uncommitted. User approved the mobile sheet after discussing alternatives and requested approval before future material design choices; recorded in AGENTS.md.
+
+## Fix: Delete list fails after hot reload and jumps to the top
+
+- [x] Reproduce against the running server without changing the user's saved board.
+- [x] Cache only the SQLite connection; construct repositories with the current command handlers after module reloads.
+- [x] Restore focus after deletion/cancellation with `preventScroll: true`.
+- [x] Verify below-fold deletion, failed saves, cancellation, and handler refresh with focused checks.
+
+Verification (2026-11-19): the running dev server returned HTTP 503 for a deliberately nonexistent `delete-list` target because the globally cached repository retained pre-feature command/error classes after hot reload. After refreshing repositories while retaining the connection, the same diagnostic returns the correct HTTP 400 target-validation response. Saved snapshot/revision remained identical before/after diagnostics. All nine focused deletion/scroll browser cases pass across Chromium, Firefox, and mobile Chromium; success, failure, and cancellation preserve the page position. All 39 selected database/accessor/board tests, lint, and types pass. The accessor regression simulates module reload and verifies a fresh repository sharing the same connection. No live AI calls or test data in the user's database. Local server remains available at http://localhost:3000; changes are uncommitted.
+
+## Follow-up: Vertical board and list deletion
+
+- [x] Wrap lists into responsive rows and use normal page scrolling, keeping the assistant visible.
+- [x] Add accessible list delete icons, confirmation for populated lists, and atomic revision-checked deletion of the list and its cards.
+- [x] Verify vertical layout, pointer/keyboard moves between rows, cancellation, deletion, empty boards, conflicts, and SQLite persistence.
+- [x] Run relevant checks, review desktop/mobile rendering, and keep the local app running.
+
+Success criteria: no horizontal board/page scroll; additional lists flow below earlier lists. Users can delete any list, including the final one, and create a list again on an empty board. The assistant still cannot delete lists or cards.
+
+Verification (2026-11-19):
+
+- Replaced the horizontally scrolling grid with responsive rows (three lists per row at 1440px with the desktop assistant; one per row on mobile). Removed the mobile board's nested scroll container so normal page scrolling reaches every list. Space below the final list accounts for the docked assistant. Pointer collision checks exclude the area covered by that assistant.
+- Every list has an accessible delete icon. Empty lists delete immediately. Populated lists open a confirmation dialog naming the list and card count, initially focusing Cancel. Cancel, Escape, close, and backdrop leave state unchanged. Confirmed deletion removes the list and its cards atomically through the revision-checked SQLite API and restores focus to Add list. Empty boards can create lists again and are never reseeded.
+- All 208 unit/component/API/database/provider tests pass (98.63% configured line coverage), including deletion rollback, stale revisions, card moves before list deletion, contiguous positions, and reopening an empty board. All 15 real SQLite persistence browser scenarios pass across Chromium, Firefox, and mobile Chromium.
+- All 27 list-focused browser scenarios pass. The full UI run passed 126/129; the remaining failures were obsolete test assumptions (dummy cards all have equal heights in wider columns; mobile drag points under the assistant). The unequal-height test now supplies deliberately taller content, and drag helpers measure the visible page frame. No application change was needed for those corrections. Final affected drag verification is recorded below.
+- Production build passes. Browser plugin unavailable; used project Playwright outside the sandbox so Firefox launches normally. Reviewed desktop/mobile screenshots showing wrapped lists, deletion controls, readable cards, and the visible assistant. Screenshots remain in the OS temporary directory (`kanban-issue3-chromium.png`, `kanban-issue3-mobile.png`). Page identity, nonblank rendering, framework-overlay absence, console health, and user interactions pass. No live AI calls were made; synthetic test databases and controlled responses leave the user's saved board untouched.
+- The local network-enabled server remains at http://localhost:3000 (HTTP 200 verified). No files or secrets are staged; changes remain uncommitted. Full-suite testing and repeated coordinate fixes took longer than warranted; future small UI follow-ups should begin with focused checks and expand only for unresolved concerns.
+- Final verification: all 27 drag regression scenarios pass across Chromium, Firefox, and mobile Chromium, including the three corrected cases from the full run. Lint, final type checking, and `git diff --check` pass. No unresolved application or test failures remain.
+
+## Issue #3: Create named lists
+
+- [x] Add a revision-checked create-list command and persist new empty lists without changing the initial five-list seed.
+- [x] Add an accessible creation dialog with trimmed, nonblank names, cancellation, focus return, and dynamic counts/layout.
+- [x] Verify rename, card creation, and pointer/keyboard moves involving added lists, plus reloads, conflicts, and invalid batches.
+- [x] Run lint, types, coverage, browser suites, build, persistence checks, and diff review; leave the local app available.
+
+Success criteria: users can add empty named lists, rename them, add/move cards, and reach every list on desktop/mobile. Cancellation and invalid/stale writes leave saved state unchanged. Issue #3 replaces the fixed-five constraint; issue #5's existing persistence applies. List deletion and assistant-created lists remain outside scope.
+
+Verification (2026-11-19):
+
+- Added a validated `create-list` command with ID collision checks and prepared SQL insertion inside the existing revision-checked transaction. The existing schema already supports additional columns, so no migration or reseeding was needed. Tests verify ordered empty lists, rename/card operations, reopen, stale writes, invalid batches, and SQL rollback after insertion.
+- The toolbar's Add list action opens the shared creation dialog. Blank names are rejected; names are trimmed; Cancel, Escape, close, and backdrop preserve state. Focus returns to the trigger and the saved new list scrolls into view. Counts and responsive grid tracks derive from the actual list count. The original five dummy lists remain the initial seed.
+- Lint, type checking, production build, and all 198 unit/component/API/database/provider tests pass; configured line coverage is 98.55%. `git diff --check` passes. No files or secrets are staged.
+- All 120 controlled UI browser scenarios pass across Chromium, Firefox, and mobile Chromium, including 18 new list scenarios. The pointer test waits for the previous landing animation before measuring the next drag. No application change was needed for that test correction.
+- All 15 real temporary-database persistence scenarios pass: 10 Chromium/mobile scenarios in the initial run and five Firefox scenarios in a separate successful run. Firefox crashes on page launch inside the restricted sandbox; the sandboxed persistence runner also hung while shutting down its temporary server. Verified and stopped only that test server on port 3220, then reran Firefox outside the sandbox. No unresolved test failures remain.
+- Browser plugin not available; used the existing Playwright setup. Reviewed screenshots at 1440 x 1000 and mobile Chromium's 390 x 664 viewport. Page title, meaningful content, console/runtime health, framework-overlay absence, keyboard controls, list reachability, and assistant visibility pass. Screenshot evidence is outside the repository in the OS temporary directory as `kanban-issue3-chromium.png` and `kanban-issue3-mobile.png`.
+- No live inference calls were made; AI protocols and supported actions are unchanged. Tests used synthetic boards and controlled assistant responses without modifying the user's saved board. The network-enabled development server remains at http://localhost:3000 with HTTP 200 verified. Changes are uncommitted; issue #3 remains open.
+
 ## Issue #8: Restore local OpenRouter assistant
 
 - [x] Reproduce the configured OpenRouter failure with synthetic data and inspect current endpoint/protocol support without exposing credentials.

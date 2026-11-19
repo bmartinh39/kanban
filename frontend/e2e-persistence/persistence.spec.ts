@@ -16,6 +16,77 @@ async function add(page: Page, title: string) {
 }
 async function snapshot(page: Page): Promise<BoardSnapshot> { return (await page.request.get("/api/board")).json(); }
 
+test("new lists and their cards persist, and competing list creation rejects stale revisions", async ({ page, context }, info) => {
+  await open(page);
+  const name = `Released ${info.project.name}`;
+  const renamed = `Shipped ${info.project.name}`;
+  const title = `List task ${info.project.name}`;
+  const before = await snapshot(page);
+  const other = await context.newPage();
+  await open(other);
+  await page.getByRole("button", { name: "Add list", exact: true }).click();
+  await page.getByLabel(/List name/).fill(`  ${name}  `);
+  await page.getByRole("button", { name: "Create list" }).click();
+  const list = page.getByRole("region", { name: `${name} column`, exact: true });
+  await expect(list).toBeVisible();
+  await expect(list.getByRole("article")).toHaveCount(0);
+  const created = await snapshot(page);
+  expect(created.columns.at(-1)).toMatchObject({ name, cards: [] });
+  expect(created.columns.slice(0, -1)).toEqual(before.columns);
+  expect(created.revision).toBe(before.revision + 1);
+  await other.getByRole("button", { name: "Add list", exact: true }).click();
+  await other.getByLabel(/List name/).fill("Stale list must not save");
+  await other.getByRole("button", { name: "Create list" }).click();
+  await expect(other.locator(".storage-error").getByRole("alert")).toContainText("another tab");
+  expect(await snapshot(other)).toEqual(created);
+  await other.close();
+  await list.getByRole("button", { name: `Rename ${name}`, exact: true }).click();
+  await page.getByLabel("Column name", { exact: true }).fill(renamed);
+  await page.getByLabel("Column name", { exact: true }).press("Enter");
+  const target = page.getByRole("region", { name: `${renamed} column`, exact: true });
+  await target.getByRole("button", { name: "Add a card" }).click();
+  await page.getByLabel(/Title/).fill(title);
+  await page.getByLabel(/Details/).fill("New list context");
+  await page.getByRole("button", { name: "Add card", exact: true }).click();
+  await expect(target.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved");
+  const content = (await snapshot(page)).columns.at(-1)!.cards[0];
+  const handle = page.getByRole("button", { name: `Move ${title}`, exact: true });
+  await handle.focus();
+  await page.keyboard.press("Space");
+  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("ArrowLeft");
+  const previousName = created.columns.at(-2)!.name;
+  await expect(page.getByRole("region", { name: `${previousName} column`, exact: true })).toHaveClass(/is-over/);
+  await page.keyboard.press("Space");
+  await expect(page.locator(".save-status")).toHaveText("Saved");
+  await expect(handle).toHaveAttribute("aria-disabled", "false");
+  await handle.press("Space");
+  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("ArrowRight");
+  await expect(target).toHaveClass(/is-over/);
+  await page.keyboard.press("Space");
+  await expect(page.locator(".save-status")).toHaveText("Saved");
+  const saved = await snapshot(page);
+  await page.reload();
+  await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(saved.columns.length);
+  await expect(page.getByText(`${saved.columns.length} stages`, { exact: true })).toBeVisible();
+  expect(await snapshot(page)).toEqual(saved);
+  expect(saved.columns.at(-1)).toEqual({ id: created.columns.at(-1)!.id, name: renamed, cards: [content] });
+  await page.getByRole("button", { name: `Delete list ${renamed}`, exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(await snapshot(page)).toEqual(saved);
+  await page.getByRole("button", { name: `Delete list ${renamed}`, exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete list", exact: true }).click();
+  await expect(page.getByRole("region", { name: `${renamed} column`, exact: true })).toHaveCount(0);
+  await expect(page.locator(".save-status")).toHaveText("Saved");
+  await page.reload();
+  await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(before.columns.length);
+  const deleted = await snapshot(page);
+  expect(deleted.columns).toEqual(before.columns);
+  expect(deleted.revision).toBe(saved.revision + 1);
+});
+
 test("real database preserves card content, names, moves and order on reload", async ({ page }, info) => {
   const title = `Persistent ${info.project.name}`;
   const errors: string[] = [];

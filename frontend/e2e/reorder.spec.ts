@@ -1,5 +1,5 @@
 import { type Locator, type Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, test, visibleBoardFrame } from "./fixtures";
 
 const originalOrder = ["card-c1", "card-c2", "card-c3"];
 const middleOrder = ["card-c2", "card-c1", "card-c3"];
@@ -44,7 +44,8 @@ async function pointerReorder(page: Page, targetId: string, screenshot?: string)
   const handle = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
   const target = page.getByTestId(targetId);
   // Keep the drop point clear of the viewport's auto-scroll edge.
-  await handle.evaluate(card => card.scrollIntoView({ block: "center", inline: "nearest" }));
+  await handle.evaluate(card => card.scrollIntoView({ block: "start", inline: "nearest" }));
+  await page.evaluate(() => window.scrollBy(0, -80));
   const from = await handle.boundingBox();
   const x = from!.x + from!.width / 2;
   const y = from!.y + from!.height / 2;
@@ -91,8 +92,11 @@ test("keyboard reorders the same card to the middle, end, and start", async ({ p
   await expect(page.getByRole("article")).toHaveCount(12);
 });
 
-test("pointer reorders between unequal-height cards without changing their contents", async ({ page }, testInfo) => {
+test("pointer reorders between unequal-height cards without changing their contents", async ({ page, boardState }, testInfo) => {
+  boardState.columns[0].cards[0].details += " More context for this taller card.".repeat(6);
+  await page.reload();
   const ideas = page.getByRole("region", { name: "Ideas column", exact: true });
+  await expect(ideas.getByRole("article")).toHaveCount(3);
   const originalContent = await cardContent(ideas);
   const heights = await ideas.getByRole("article").evaluateAll(cards => cards.map(card => card.getBoundingClientRect().height));
   expect(new Set(heights).size).toBeGreaterThan(1);
@@ -137,7 +141,7 @@ test("ignores keyboard boundary moves and cancels a sorting preview with focus r
   await expect(page.getByRole("article")).toHaveCount(12);
 });
 
-test("dropping in the gutter beside a clipped column leaves the order unchanged", async ({ page }) => {
+test("dropping in the gutter beside the board leaves the order unchanged", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 1000 });
   const ideas = page.getByRole("region", { name: "Ideas column", exact: true });
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
@@ -147,18 +151,15 @@ test("dropping in the gutter beside a clipped column leaves the order unchanged"
   await handle.scrollIntoViewIfNeeded();
 
   const target = ideas.getByTestId("card-c2");
-  const [source, board, clipped, nextCard] = await Promise.all([
+  const [source, board, nextCard] = await Promise.all([
     handle.boundingBox(),
     scroll.boundingBox(),
-    planned.boundingBox(),
     target.boundingBox(),
   ]);
   const x = source!.x + source!.width / 2;
   const y = source!.y + source!.height / 2;
   const gutterX = Math.floor(board!.x + board!.width) + 8;
   expect(gutterX).toBeLessThan(390);
-  expect(gutterX).toBeGreaterThan(clipped!.x);
-  expect(gutterX).toBeLessThan(clipped!.x + clipped!.width);
 
   await page.mouse.move(x, y);
   await page.mouse.down();
@@ -229,7 +230,8 @@ for (const input of ["pointer", "keyboard"] as const) {
         } else if (destination === "Ideas") {
           await pointerReorder(page, "card-c2");
         } else {
-          await handle.scrollIntoViewIfNeeded();
+          await handle.evaluate(element => element.scrollIntoView({ block: "start" }));
+          await page.evaluate(() => window.scrollBy(0, -80));
           const from = await handle.boundingBox();
           const x = from!.x + from!.width / 2;
           const y = from!.y + from!.height / 2;
@@ -237,10 +239,11 @@ for (const input of ["pointer", "keyboard"] as const) {
           await page.mouse.down();
           await page.mouse.move(x + 8, y);
           await expect(handle).toHaveAttribute("aria-pressed", "true");
-          await targetColumn.scrollIntoViewIfNeeded();
+          await targetColumn.locator(".column-header").evaluate(element => element.scrollIntoView({ block: "start" }));
+          await page.evaluate(() => window.scrollBy(0, -80));
           const target = await targetColumn.boundingBox();
-          const frame = await page.getByLabel("Project board columns").boundingBox();
-          // The column may be clipped on mobile. Drop only within its visible frame.
+          const frame = await visibleBoardFrame(page);
+          // Keep the point within the page area above the mobile assistant.
           const left = Math.max(target!.x, frame!.x);
           const right = Math.min(target!.x + target!.width, frame!.x + frame!.width);
           await page.mouse.move((left + right) / 2, Math.min(target!.y + 80, frame!.y + frame!.height / 2), { steps: 10 });

@@ -27,15 +27,21 @@ export function boardRepository(db: Database.Database) {
         const remaining = new Set(columns.flatMap(column => column.cards.map(card => card.id)));
         const remove = db.prepare("DELETE FROM cards WHERE id = ?");
         for (const id of previous.keys()) if (!remaining.has(id)) remove.run(id);
-        const rename = db.prepare("UPDATE columns SET name = ? WHERE id = ?");
+        const removeColumn = db.prepare("DELETE FROM columns WHERE id = ?");
+        // Cards that move out of a deleted list must be written before its removal.
+        const rename = db.prepare("UPDATE columns SET name = ?, position = ? WHERE id = ?");
+        const insertColumn = db.prepare("INSERT INTO columns (id, name, position) VALUES (?, ?, ?)");
         const upsert = db.prepare("INSERT INTO cards (id, column_id, title, details, position) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET column_id = excluded.column_id, title = excluded.title, details = excluded.details, position = excluded.position");
         columns.forEach((column, index) => {
-          if (column.name !== before.columns[index].name) rename.run(column.name, column.id);
+          const oldColumn = before.columns.find(item => item.id === column.id);
+          if (!oldColumn) insertColumn.run(column.id, column.name, index);
+          else rename.run(column.name, index, column.id);
           column.cards.forEach((card, position) => {
             const old = previous.get(card.id);
             if (!old || old.columnId !== column.id || old.position !== position || old.title !== card.title || old.details !== card.details) upsert.run(card.id, column.id, card.title, card.details, position);
           });
         });
+        for (const column of before.columns) if (!columns.some(item => item.id === column.id)) removeColumn.run(column.id);
         db.prepare("UPDATE board_state SET revision = revision + 1 WHERE id = 1").run();
         return read();
       }).immediate();

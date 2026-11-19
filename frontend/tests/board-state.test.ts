@@ -2,6 +2,27 @@ import { describe, expect, it } from "vitest";
 import { boardReducer, initialBoard } from "../app/board-state";
 
 describe("board state", () => {
+  it("deletes only the selected list and its cards, including the final list", () => {
+    const result = boardReducer(initialBoard, { type: "delete-list", columnId: "ideas" });
+    expect(result).toEqual(initialBoard.slice(1));
+    expect(result.flatMap(column => column.cards)).toHaveLength(9);
+    expect(boardReducer([initialBoard[0]], { type: "delete-list", columnId: "ideas" })).toEqual([]);
+    expect(initialBoard).toHaveLength(5);
+  });
+  it("creates empty trimmed lists and supports renaming, adding and moving cards through them", () => {
+    let board = boardReducer(initialBoard, { type: "create-list", listId: "new-list", name: "  Released  " });
+    expect(board).toHaveLength(6);
+    expect(board[5]).toEqual({ id: "new-list", name: "Released", cards: [] });
+    expect(board.slice(0, 5)).toEqual(initialBoard);
+    expect(boardReducer(board, { type: "create-list", listId: "blank", name: " \t " })).toBe(board);
+    board = boardReducer(board, { type: "rename", columnId: "new-list", name: "Shipped" });
+    board = boardReducer(board, { type: "add", columnId: "new-list", card: { id: "new-card", title: "New task", details: "Context" } });
+    board = boardReducer(board, { type: "move", cardId: "c1", columnId: "new-list", index: 0 });
+    expect(board[5].cards).toEqual([initialBoard[0].cards[0], { id: "new-card", title: "New task", details: "Context" }]);
+    board = boardReducer(board, { type: "move", cardId: "c1", columnId: "ideas", index: 0 });
+    expect(board[0]).toEqual(initialBoard[0]);
+    expect(initialBoard).toHaveLength(5);
+  });
   it.each([
     [0, ["c1", "c4", "c5"]],
     [1, ["c4", "c1", "c5"]],

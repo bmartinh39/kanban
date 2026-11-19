@@ -39,7 +39,7 @@ function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete }: { card: 
   </article>;
 }
 
-function BoardColumn({ column, index, busy, onAdd, onDelete, onRename }: { column: Column; index: number; busy: boolean; onAdd: (trigger: HTMLButtonElement) => void; onDelete: (id: string) => void; onRename: (name: string) => void }) {
+function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRename }: { column: Column; index: number; busy: boolean; onAdd: (trigger: HTMLButtonElement) => void; onDelete: (id: string) => void; onDeleteList: (trigger: HTMLButtonElement) => void; onRename: (name: string) => void }) {
   const { setNodeRef } = useDroppable({ id: column.id, data: { type: "column", columnId: column.id, index } });
   const { active, activeNodeRect, over, droppableRects } = useDndContext();
   const isOver = over?.data.current?.columnId === column.id;
@@ -66,6 +66,7 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onRename }: { colum
         <button className="icon-button" disabled={!name.trim()} aria-label="Save column name"><Check size={15} /></button>
         <button type="button" className="icon-button" aria-label="Cancel rename" onClick={() => finishRename(false)}><X size={15} /></button>
       </form> : <><h2>{column.name}</h2><span className="column-count">{column.cards.length}</span><button ref={renameButton} aria-disabled={busy} className="icon-button rename-button" aria-label={`Rename ${column.name}`} onClick={() => { if (busy) return; setName(column.name); setRenaming(true); }}><Pencil size={13} /></button></>}
+      <button className="icon-button list-delete" disabled={busy || renaming} aria-label={`Delete list ${column.name}`} onClick={event => onDeleteList(event.currentTarget)}><Trash2 size={14} /></button>
     </header>
     <div className="card-stack" style={{ paddingBottom: gapHeight }}>
       {inserting && <div className="insertion-preview" aria-hidden="true" style={{ top: insertionTop, height: gapHeight - 11 }} />}
@@ -78,7 +79,8 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onRename }: { colum
   </section>;
 }
 
-function AddCardDialog({ columnName, onClose, onAdd }: { columnName: string; onClose: () => void; onAdd: (title: string, details: string) => void }) {
+function AddItemDialog({ columnName, onClose, onAdd }: { columnName?: string; onClose: () => void; onAdd: (title: string, details: string) => void }) {
+  const isList = columnName === undefined;
   const dialog = useRef<HTMLDialogElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
@@ -99,14 +101,45 @@ function AddCardDialog({ columnName, onClose, onAdd }: { columnName: string; onC
     if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
     <form onSubmit={event => { event.preventDefault(); if (title.trim()) onAdd(title, details); }}>
-      <div className="dialog-heading"><div><span className="eyebrow">A NEW POSSIBILITY</span><h2 id={titleId}>Add a card</h2></div><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose}><X size={20} /></button></div>
-      <p className="dialog-subtitle">A place in <strong>{columnName}</strong> for your next idea.</p>
-      <label htmlFor="card-title">Title <span className="required-label">Required</span></label>
-      <input id="card-title" ref={titleInput} placeholder="What needs to happen?" value={title} onChange={event => setTitle(event.target.value)} required />
-      <label htmlFor="card-details">Details <span className="optional-label">Optional</span></label>
-      <textarea id="card-details" placeholder="A little context goes a long way..." value={details} onChange={event => setDetails(event.target.value)} rows={4} />
-      <div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={!title.trim()}>Add card <Plus size={16} /></button></div>
+      <div className="dialog-heading"><div><span className="eyebrow">A NEW POSSIBILITY</span><h2 id={titleId}>{isList ? "Add a list" : "Add a card"}</h2></div><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose}><X size={20} /></button></div>
+      <p className="dialog-subtitle">{isList ? "Make a little more room for your work." : <>A place in <strong>{columnName}</strong> for your next idea.</>}</p>
+      <label htmlFor="item-title">{isList ? "List name" : "Title"} <span className="required-label">Required</span></label>
+      <input id="item-title" ref={titleInput} placeholder={isList ? "What is this stage called?" : "What needs to happen?"} value={title} onChange={event => setTitle(event.target.value)} maxLength={20000} required />
+      {!isList && <><label htmlFor="card-details">Details <span className="optional-label">Optional</span></label>
+      <textarea id="card-details" placeholder="A little context goes a long way..." value={details} onChange={event => setDetails(event.target.value)} rows={4} /></>}
+      <div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={!title.trim()}>{isList ? "Create list" : "Add card"} <Plus size={16} /></button></div>
     </form>
+  </dialog>;
+}
+
+function DeleteListDialog({ column, onClose, onDelete }: { column: Column; onClose: () => void; onDelete: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  const [closing, setClosing] = useState<"cancel" | "delete" | null>(null);
+  useEffect(() => {
+    const element = dialog.current!;
+    element.showModal();
+    cancel.current!.focus();
+    return () => element.close();
+  }, []);
+  useEffect(() => {
+    if (!closing) return;
+    const element = dialog.current!;
+    let cancelled = false;
+    void Promise.allSettled(element.getAnimations().map(animation => animation.finished)).then(() => {
+      if (cancelled) return;
+      element.close();
+      if (closing === "delete") onDelete(); else onClose();
+    });
+    return () => { cancelled = true; };
+  }, [closing, onClose, onDelete]);
+  return <dialog ref={dialog} className={`delete-confirmation${closing ? " is-closing" : ""}`} aria-labelledby={titleId} aria-describedby={descriptionId} onCancel={event => { event.preventDefault(); if (!closing) setClosing("cancel"); }} onClick={event => { if (event.target === event.currentTarget && !closing) setClosing("cancel"); }}>
+    <div className="confirmation-accent" aria-hidden="true"><Trash2 size={23} /></div>
+    <div className="dialog-heading"><h2 id={titleId}>Delete this list?</h2><button type="button" className="icon-button" disabled={!!closing} aria-label="Close dialog" onClick={() => setClosing("cancel")}><X size={20} /></button></div>
+    <p id={descriptionId} className="dialog-subtitle">{column.cards.length ? <>Deleting <strong>{column.name}</strong> also deletes its {column.cards.length} {column.cards.length === 1 ? "card" : "cards"}.</> : <>Delete the empty list <strong>{column.name}</strong>?</>} This cannot be undone.</p>
+    <div className="dialog-actions"><button ref={cancel} className="secondary-button" disabled={!!closing} onClick={() => setClosing("cancel")}>Cancel</button><button className="primary-button" disabled={!!closing} onClick={() => setClosing("delete")}>Delete list <Trash2 size={15} /></button></div>
   </dialog>;
 }
 
@@ -125,10 +158,34 @@ export default function Home() {
     return message;
   }
   const [addingTo, setAddingTo] = useState<string | null>(null);
+  const [addingList, setAddingList] = useState(false);
+  const [deletingList, setDeletingList] = useState<Column | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const addTrigger = useRef<HTMLButtonElement>(null);
   const boardViewport = useRef<HTMLDivElement>(null);
   const keyboardDrop = useRef<string | null>(null);
+  const createdList = useRef<string | null>(null);
+  const deletedList = useRef(false);
+  useLayoutEffect(() => {
+    if (storage.saving || !deletedList.current) return;
+    deletedList.current = false;
+    document.querySelector<HTMLButtonElement>(".add-list")?.focus({ preventScroll: true });
+  }, [savedBoard, storage.saving]);
+  function deleteList(column: Column) {
+    deletedList.current = true;
+    setDeletingList(null);
+    dispatch({ type: "delete-list", columnId: column.id });
+  }
+  function cancelDelete() {
+    setDeletingList(null);
+    requestAnimationFrame(() => addTrigger.current?.focus({ preventScroll: true }));
+  }
+  useLayoutEffect(() => {
+    if (storage.saving || !createdList.current) return;
+    const index = savedBoard.findIndex(column => column.id === createdList.current);
+    if (index >= 0) boardViewport.current?.querySelectorAll(".column-header")[index]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    createdList.current = null;
+  }, [savedBoard, storage.saving]);
   useLayoutEffect(() => {
     if (storage.saving || !keyboardDrop.current) return;
     const cardId = keyboardDrop.current;
@@ -138,6 +195,7 @@ export default function Home() {
   }, [board, storage.saving]);
   function closeDialog() {
     setAddingTo(null);
+    setAddingList(false);
     requestAnimationFrame(() => addTrigger.current?.focus());
   }
   function handleDragCancel({ activatorEvent }: DragCancelEvent) {
@@ -170,23 +228,28 @@ export default function Home() {
     <header className="topbar"><div className="brand" aria-label="Forma"><span className="brand-mark"><span /><span /><span /><span /></span>forma<span className="brand-period">.</span></div><div className="workspace-label"><span /> Your creative workspace</div><span className="edition">A little clarity, every day.</span></header>
     <main>
       <section className="intro"><div className="intro-copy"><div className="eyebrow"><span className="small-line" /> LESS NOISE. MORE FLOW.</div><h1>The work, in view<span>.</span></h1><p>Big ideas meet small steps. Make space for what&apos;s next.</p></div><div className="intro-note"><ArrowDownRight size={25} strokeWidth={1.4} /><span>A clear head starts<br />with a clear board.</span></div></section>
-      <div className="board-toolbar"><div className="board-label"><LayoutGrid size={17} /><h2>Project board</h2><span className="live-dot" /></div><div className="board-summary"><span className="save-status" aria-live="polite">{storage.saving ? "Saving..." : !storage.available ? "Disconnected" : storage.error ? "Check changes" : "Saved"}</span><span>{total} cards</span><span className="summary-separator" /><span>5 stages</span></div></div>
+      <div className="board-toolbar"><div className="board-label"><LayoutGrid size={17} /><h2>Project board</h2><span className="live-dot" /></div><div className="board-summary"><span className="save-status" aria-live="polite">{storage.saving ? "Saving..." : !storage.available ? "Disconnected" : storage.error ? "Check changes" : "Saved"}</span><span>{total} cards</span><span className="summary-separator" /><span>{board.length} stages</span></div><button className="secondary-button add-list" aria-disabled={storage.saving || !storage.available || activeId !== null} onClick={event => { if (storage.saving || !storage.available || activeId !== null) return; addTrigger.current = event.currentTarget; setAddingList(true); }}><Plus size={15} /> Add list</button></div>
       {storage.error && <div className="storage-error"><p role="alert">{storage.error}</p><button className="secondary-button" disabled={storage.loading || storage.saving} onClick={() => void storage.load()}>Reload board</button></div>}
       <DndContext
         id="project-board"
         sensors={sensors}
-        collisionDetection={args => boardCollisionDetection(args, boardViewport.current?.getBoundingClientRect(), boardViewport.current?.closest("main")?.getBoundingClientRect())}
+        collisionDetection={args => {
+          const panelTop = window.innerWidth <= 700 ? document.querySelector(".assistant-panel")?.getBoundingClientRect().top : undefined;
+          return boardCollisionDetection(args, boardViewport.current?.getBoundingClientRect(), new DOMRect(0, 0, window.innerWidth, panelTop ?? window.innerHeight));
+        }}
         onDragStart={event => setActiveId(String(event.active.id))}
         onDragCancel={handleDragCancel}
         onDragEnd={handleDragEnd}
         accessibility={{ announcements, screenReaderInstructions: { draggable: "Press Space to pick up a card. Use Up and Down to reorder it within its column. Use Left and Right to move it to another column. Press Space to drop, or Escape to cancel." } }}
       >
-        <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} busy={storage.saving || !storage.available} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={cardId => dispatch({ type: "delete", cardId })} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div></div>
+        <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} busy={storage.saving || !storage.available} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={cardId => dispatch({ type: "delete", cardId })} onDeleteList={trigger => { addTrigger.current = trigger; setDeletingList(column); }} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div>{!board.length && <div className="empty-board"><Columns3 size={25} /><p>A fresh start. Add a list to make room for your work.</p></div>}</div>
         <DragOverlay>{activeCard && <div className="task-card drag-preview"><div className="card-tools"><GripVertical size={16} /></div><CardContent card={activeCard} /></div>}</DragOverlay>
       </DndContext>
       <footer className="board-footer"><span><GripVertical size={14} /> Grab a handle. Find a new perspective.</span><span>Built for a little forward motion <ArrowUpRight size={14} /></span></footer>
       <AssistantChat board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
     </main>
-    {addingColumn && <AddCardDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={(title, details) => { dispatch({ type: "add", columnId: addingColumn.id, card: { id: crypto.randomUUID(), title, details } }); closeDialog(); }} />}
+    {addingColumn && <AddItemDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={(title, details) => { dispatch({ type: "add", columnId: addingColumn.id, card: { id: crypto.randomUUID(), title, details } }); closeDialog(); }} />}
+    {addingList && <AddItemDialog onClose={closeDialog} onAdd={name => { const listId = crypto.randomUUID(); createdList.current = listId; dispatch({ type: "create-list", listId, name }); closeDialog(); }} />}
+    {deletingList && <DeleteListDialog column={deletingList} onClose={cancelDelete} onDelete={() => deleteList(deletingList)} />}
   </div>;
 }

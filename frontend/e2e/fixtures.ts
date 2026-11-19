@@ -1,4 +1,4 @@
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect, type Page } from "@playwright/test";
 import { initialBoard } from "../app/board-state";
 import { applyCommands, type BoardSnapshot } from "../app/board-commands";
 
@@ -17,3 +17,13 @@ export const test = base.extend<{ boardState: BoardSnapshot }>({
   },
 });
 export { expect };
+
+export async function visibleBoardFrame(page: Page) {
+  return page.getByLabel("Project board columns").evaluate(element => {
+    const board = element.getBoundingClientRect();
+    const panelTop = window.innerWidth <= 700 ? document.querySelector(".assistant-panel")!.getBoundingClientRect().top : window.innerHeight;
+    const x = Math.max(0, board.left);
+    const y = Math.max(0, board.top);
+    return { x, y, width: Math.min(window.innerWidth, board.right) - x, height: Math.min(panelTop, board.bottom) - y };
+  });
+}

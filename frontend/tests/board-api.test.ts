@@ -12,6 +12,31 @@ beforeEach(() => { db = openDatabase(":memory:", true); vi.mocked(getBoardReposi
 afterEach(() => { db.close(); vi.restoreAllMocks(); });
 
 describe("board HTTP API", () => {
+  it("deletes lists and their cards atomically, and rejects stale list deletion", async () => {
+    const before = await GET().json();
+    const response = await POST(request({ revision: 0, actions: [{ type: "delete-list", columnId: "ideas" }] }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).columns).toEqual(before.columns.slice(1));
+    expect((await POST(request({ revision: 0, actions: [{ type: "delete-list", columnId: "planned" }] }))).status).toBe(409);
+    expect((await GET().json()).columns).toEqual(before.columns.slice(1));
+  });
+  it("creates empty lists, then renames and uses them in an atomic saved batch", async () => {
+    const created = await POST(request({ revision: 0, actions: [{ type: "create-list", listId: "new-list", name: "  Released  " }] }));
+    expect(created.status).toBe(200);
+    expect((await created.json()).columns[5]).toEqual({ id: "new-list", name: "Released", cards: [] });
+    const response = await POST(request({ revision: 1, actions: [
+      { type: "rename", columnId: "new-list", name: "Shipped" },
+      { type: "add", columnId: "new-list", card: { id: "new-card", title: "Test", details: "Context" } },
+      { type: "move", cardId: "c1", columnId: "new-list", index: 0 },
+    ] }));
+    expect(response.status).toBe(200);
+    const saved = await GET().json();
+    expect(saved.revision).toBe(2);
+    expect(saved.columns[5].name).toBe("Shipped");
+    expect(saved.columns[5].cards.map((card: { id: string }) => card.id)).toEqual(["c1", "new-card"]);
+    expect((await POST(request({ revision: 0, actions: [{ type: "create-list", listId: "stale", name: "Stale" }] }))).status).toBe(409);
+    expect(await GET().json()).toEqual(saved);
+  });
   it("accepts the browser's Host address when Next normalizes its internal URL", async () => {
     const response = await POST(new Request("http://localhost:3000/api/board/actions", {
       method: "POST", headers: { host: "127.0.0.1:3230", origin: "http://127.0.0.1:3230" },
@@ -37,6 +62,10 @@ describe("board HTTP API", () => {
     null, {}, { revision: -1, actions: [] }, { revision: 0, actions: {} }, { revision: 0, actions: [null] },
     { revision: 0, actions: Array(21).fill({ type: "delete", cardId: "c1" }) },
     ...[
+      { type: "delete-list", columnId: "" }, { type: "delete-list", columnId: "missing" }, { type: "delete-list", columnId: 4 },
+      { type: "create-list", listId: "", name: "List" }, { type: "create-list", listId: "x" },
+      { type: "create-list", listId: "x", name: 42 }, { type: "create-list", listId: "x", name: " \t " },
+      { type: "create-list", listId: "ideas", name: "Duplicate ID" }, { type: "create-list", listId: "c1", name: "Card ID" },
       { type: "assistant", actions: [] }, { type: "delete", cardId: "" }, { type: "delete", cardId: "missing" },
       { type: "add", columnId: "ideas", card: { id: "c1", title: "Duplicate", details: "" } },
       { type: "add", columnId: "ideas", card: { id: "ideas", title: "Duplicate", details: "" } },

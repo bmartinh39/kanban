@@ -53,7 +53,7 @@ async function keyboardMove(page: Page, title: string, target: string, cancel = 
   await page.keyboard.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("ArrowRight");
-  // Horizontal scrolling updates the drop target asynchronously on narrow screens.
+  // Scrolling between rows updates the drop target asynchronously on narrow screens.
   await expect(page.getByRole("region", { name: `${target} column`, exact: true })).toHaveClass(/is-over/);
   await page.keyboard.press(cancel ? "Escape" : "Space");
   await expect(page.locator(".drag-preview")).toHaveCount(0);
@@ -185,8 +185,7 @@ test("appends, cancels, and reorders by keyboard after scrolling, then persists 
   await expectCardOrder(planned, ["c4", "c5", "c1"]);
 
   if (testInfo.project.name === "mobile") {
-    const scroll = page.getByLabel("Project board columns");
-    await expect.poll(() => scroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   }
   await expect(handle).toBeInViewport();
   await handle.press("Space");
@@ -255,7 +254,7 @@ test("wraps long content, scrolls all columns, and has no application errors", a
   const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "A".repeat(180) }) });
   expect(await card.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   const scroll = page.getByLabel("Project board columns");
-  await scroll.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+  expect(await scroll.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.getByRole("region", { name: "Done column", exact: true }).getByRole("button", { name: "Add a card" }).scrollIntoViewIfNeeded();
   await expect(page.getByRole("region", { name: "Done column", exact: true }).getByRole("button", { name: "Add a card" })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

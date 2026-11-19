@@ -13,6 +13,59 @@ beforeEach(() => { folder = mkdtempSync(join(tmpdir(), "kanban-db-")); db = open
 afterEach(() => { if (db.open) db.close(); rmSync(folder, { recursive: true, force: true }); });
 
 describe("SQLite persistence", () => {
+  it("persists list deletion and contiguous positions, including an empty board without reseeding", () => {
+    const repo = boardRepository(db);
+    const saved = repo.mutate(0, [{ type: "delete-list", columnId: "ideas" }, { type: "delete-list", columnId: "review" }]);
+    expect(saved.columns).toEqual([initialBoard[1], initialBoard[2], initialBoard[4]]);
+    expect(db.prepare("SELECT position FROM columns ORDER BY position").all()).toEqual([{ position: 0 }, { position: 1 }, { position: 2 }]);
+    expect(db.prepare("SELECT COUNT(*) AS count FROM cards").get()).toEqual({ count: 7 });
+    repo.mutate(1, saved.columns.map(column => ({ type: "delete-list", columnId: column.id })));
+    db.close(); db = openDatabase(join(folder, "board.sqlite"), true);
+    expect(boardRepository(db).read()).toEqual({ revision: 2, columns: [] });
+    expect(boardRepository(db).mutate(2, [{ type: "create-list", listId: "fresh", name: "Fresh" }]).columns).toEqual([{ id: "fresh", name: "Fresh", cards: [] }]);
+  });
+  it("can move a card out before deleting its old list in the same batch", () => {
+    const saved = boardRepository(db).mutate(0, [{ type: "move", cardId: "c1", columnId: "planned" }, { type: "delete-list", columnId: "ideas" }]);
+    expect(saved.columns[0].cards.at(-1)).toEqual(initialBoard[0].cards[0]);
+    expect(saved.columns).toHaveLength(4);
+    expect(db.pragma("foreign_key_check")).toEqual([]);
+  });
+  it("rolls back card removal when list deletion fails", () => {
+    db.exec("CREATE TRIGGER fail_delete BEFORE DELETE ON columns BEGIN SELECT RAISE(ABORT, 'test delete failure'); END;");
+    expect(() => boardRepository(db).mutate(0, [{ type: "delete-list", columnId: "ideas" }])).toThrow("test delete failure");
+    expect(boardRepository(db).read()).toEqual({ columns: initialBoard, revision: 0 });
+  });
+  it("keeps new lists, order, names and cards after reopening without reseeding", () => {
+    const saved = boardRepository(db).mutate(0, [
+      { type: "create-list", listId: "sixth", name: "  Released  " },
+      { type: "create-list", listId: "seventh", name: "Empty" },
+      { type: "rename", columnId: "sixth", name: "Shipped" },
+      { type: "move", cardId: "c1", columnId: "sixth" },
+      { type: "add", columnId: "sixth", card: { id: "new", title: "New", details: "Context" } },
+    ]);
+    db.close(); db = openDatabase(join(folder, "board.sqlite"), true);
+    expect(boardRepository(db).read()).toEqual(saved);
+    expect(saved.columns.slice(5)).toEqual([
+      { id: "sixth", name: "Shipped", cards: [initialBoard[0].cards[0], { id: "new", title: "New", details: "Context" }] },
+      { id: "seventh", name: "Empty", cards: [] },
+    ]);
+  });
+  it("rejects duplicate list IDs and invalid later actions without partial list creation", () => {
+    const repo = boardRepository(db);
+    for (const later of [
+      { type: "create-list", listId: "new", name: "Duplicate" },
+      { type: "move", cardId: "missing", columnId: "new" },
+    ]) expect(() => repo.mutate(0, [{ type: "create-list", listId: "new", name: "New" }, later])).toThrow();
+    expect(repo.read()).toEqual({ columns: initialBoard, revision: 0 });
+  });
+  it("rolls back list insertion if a later SQL write fails", () => {
+    db.exec("CREATE TRIGGER fail_update BEFORE UPDATE ON cards BEGIN SELECT RAISE(ABORT, 'test storage failure'); END;");
+    expect(() => boardRepository(db).mutate(0, [
+      { type: "create-list", listId: "new", name: "New" },
+      { type: "move", cardId: "c1", columnId: "new" },
+    ])).toThrow("test storage failure");
+    expect(boardRepository(db).read()).toEqual({ columns: initialBoard, revision: 0 });
+  });
   it("initializes once with foreign keys, WAL, full sync, schema version, and dummy data", () => {
     expect(boardRepository(db).read()).toEqual({ columns: initialBoard, revision: 0 });
     expect(db.pragma("journal_mode", { simple: true })).toBe("wal");
