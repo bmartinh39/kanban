@@ -67,6 +67,7 @@ npm run test:e2e:persistence
 - Use the same contract tests for every provider, including model/key selection, configuration failures, malformed output, refusals, and upstream errors. Unit and browser suites must use controlled responses rather than making paid inference calls.
 - Test affected browser flows in Chromium, Firefox, and mobile Chromium. Keep pointer coordinates within the actual visible board frame; scrolling and sorting previews can invalidate earlier measurements.
 - For a live provider smoke test, use synthetic board data, the explicitly selected model, and the server route. Report live-provider checks separately from mocked coverage. Do not infer that another adapter works live from one provider's success.
+- Start the local app server with outbound HTTPS access when handing off a working live assistant. A server launched inside a network-restricted sandbox can serve the board while all AI requests fail; HTTP readiness and mocked browser tests do not verify provider connectivity.
 - Check `git diff --check` and verify no secret values are staged before committing. Record meaningful verification and known limitations in `PLAN.md`; keep `README.md` concise.
 
 ## Color Scheme

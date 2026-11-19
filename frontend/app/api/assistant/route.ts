@@ -4,7 +4,7 @@ import { validRevision } from "../../board-commands";
 import { getBoardRepository } from "../../server/db";
 import { BoardConflict } from "../../server/db/repository";
 import { boardError, HttpError, json, readBody } from "../../server/board-http";
-import { AssistantConfigurationError } from "../../server/assistant/provider";
+import { AssistantConfigurationError, AssistantConnectionError } from "../../server/assistant/provider";
 import { createAssistantProvider } from "../../server/assistant/providers";
 
 const instructions = `You are Forma's board assistant. Reply in the user's language.
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     return json({ ...plan, revision });
   } catch (error) {
     if (error instanceof AssistantConfigurationError) return Response.json({ error: error.message }, { status: 503 });
+    if (error instanceof AssistantConnectionError) return Response.json({ error: error.message }, { status: 502 });
     return Response.json({ error: "The assistant could not complete this request. Try again. No changes were made." }, { status: 502 });
   }
 }

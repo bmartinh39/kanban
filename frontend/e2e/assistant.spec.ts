@@ -99,6 +99,28 @@ test("assistant rejects a stale reply and keeps the board's manual changes", asy
   await expect(page.getByRole("heading", { name: "Stale task" })).toHaveCount(0);
 });
 
+test("assistant explains a server connection failure and can retry without changing the board early", async ({ page, boardState }) => {
+  let turn = 0;
+  await page.route("**/api/assistant", route => {
+    const revision = route.request().postDataJSON().revision;
+    return turn++ === 0
+      ? route.fulfill({ status: 502, json: { error: "The assistant server could not reach the AI provider. Check the server's internet access and try again. No changes were made." } })
+      : route.fulfill({ json: { message: "Done", revision, operations: [operation({ list: "Planned", title: "Connection recovered" })] } });
+  });
+  await openChat(page);
+  await send(page, "Create Connection recovered in Planned");
+  const panel = page.getByRole("region", { name: "Board assistant", exact: true });
+  await expect(panel.getByRole("alert")).toContainText("server's internet access");
+  await expect(page.getByLabel("What would you like to change?")).toHaveValue("Create Connection recovered in Planned");
+  await expect(page.getByRole("article")).toHaveCount(12);
+  expect(boardState.revision).toBe(0);
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(panel.getByRole("log")).toContainText('Created "Connection recovered" in Planned.');
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("article")).toHaveCount(13);
+  expect(boardState.revision).toBe(1);
+});
+
 test("assistant stays visible, is keyboard accessible, and fits the viewport", async ({ page }) => {
   await openChat(page);
   await page.getByLabel("What would you like to change?").fill("   ");

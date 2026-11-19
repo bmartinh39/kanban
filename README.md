@@ -16,6 +16,8 @@ Open http://localhost:3000. Drag a card into the gap at any position in another 
 
 Copy `frontend/.env.example` to `frontend/.env.local` to configure AI. Set `AI_PROVIDER` (`openai` or `openrouter`), `AI_MODEL`, and the selected provider's `OPENAI_API_KEY` or `OPENROUTER_API_KEY`. Restart/redeploy after changes. The example pins `openrouter` / `nvidia/nemotron-3.5-super-vl:free`; no model/provider fallback occurs. Legacy `OPENAI_MODEL` applies only to OpenAI when `AI_MODEL` is unset. Without a key the board still works. Keys stay server-side, never in `NEXT_PUBLIC_`, logs, commits, or images.
 
+AI needs outbound HTTPS from the Node.js server. If it cannot reach the provider, restart the server in an environment with internet access; loading the board alone does not verify AI connectivity.
+
 The assistant can create, edit, and move cards. Providers implement `AssistantProvider.generatePlan`; current OpenAI/OpenRouter protocols live in `app/server/assistant/`. Proposals use the saved board revision and commit atomically. Recent chat and board content go to the selected provider with `store: false`; upstream retention depends on the provider.
 
 Checks, from `frontend`:

@@ -128,8 +128,22 @@ describe("assistant route", () => {
     expect(response.status).toBe(502);
     expect(JSON.stringify(await response.json())).not.toMatch(/test-secret|private provider details/);
   });
-  it("handles connection failures", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("secret")));
-    expect((await POST(request())).status).toBe(502);
+  it.each(["openai", "openrouter"])("explains blocked server networking for %s without leaking upstream details", async name => {
+    vi.stubEnv("AI_PROVIDER", name);
+    vi.stubEnv("OPENROUTER_API_KEY", "router-secret");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("secret endpoint and credentials")));
+    const response = await POST(request());
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.error).toContain("server's internet access");
+    expect(body.error).not.toMatch(/secret|credentials|endpoint/);
+    expect(databaseRevision).toBe(0);
+    expect(databaseBoard).toEqual(initialBoard);
+  });
+  it("distinguishes provider timeouts from blocked networking", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("private timeout", "TimeoutError")));
+    const response = await POST(request());
+    expect(response.status).toBe(502);
+    expect((await response.json()).error).toContain("took too long");
   });
 });

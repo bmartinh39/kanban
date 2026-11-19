@@ -1,5 +1,25 @@
 # Kanban MVP implementation plan
 
+## Issue #8: Restore local OpenRouter assistant
+
+- [x] Reproduce the configured OpenRouter failure with synthetic data and inspect current endpoint/protocol support without exposing credentials.
+- [x] Fix the provider/configuration cause while preserving schema validation, revision checks, and explicit model selection.
+- [x] Add controlled regression coverage and verify the selected OpenRouter model live through an isolated server route.
+- [x] Run lint, types, coverage, affected browser checks, build, persistence checks, and diff review; keep the local server available.
+
+Success criteria: the configured OpenRouter model produces a validated plan through the local assistant route; create/edit/move succeed without losing card IDs or bypassing stale-board protection. Failures stay safe and actionable.
+
+Verification (2026-11-19):
+
+- Root cause: the local development server was launched inside a network-restricted sandbox. The configured model/key were present; a synthetic direct OpenRouter request failed immediately with a transport error inside the sandbox and succeeded with approved network access. The full assistant route also succeeded on a network-enabled isolated server. Restarted only the verified Kanban dev-server process tree with network access; the saved user database was retained.
+- Kept the selected `openrouter` / `nvidia/nemotron-3.5-super-vl:free` configuration and existing Responses adapter. OpenRouter's live endpoint listing advertised `response_format` and `structured_outputs`; official documentation confirmed the existing `text.format` schema request and `require_parameters` routing. No provider/model fallback or credential changes were needed.
+- Transport failures and timeouts now have distinct, actionable, credential-free messages. Both providers share the same connection-error contract tests; upstream HTTP errors, invalid plans, and refusals remain safely rejected. README and agent instructions now distinguish local HTTP readiness from live-provider connectivity.
+- Lint, type checking, production build, `git diff --check`, and all 182 unit/component/API/provider tests pass (98.5% line coverage). Tests cover private-detail redaction, blocked networking, timeout handling, both providers, and unchanged database revisions on failures.
+- All 15 affected controlled assistant browser scenarios pass across Chromium, Firefox, and mobile Chromium, including recovery after a connection error without premature board writes. All 12 isolated production-server persistence scenarios pass. Automated suites used controlled responses, not live inference.
+- Separately, live OpenRouter checks used synthetic boards in temporary databases: create; edit and move in a batch while retaining the card ID; and readback after save. A final live browser check against the freshly built app created a card through the real UI, saved it, and confirmed it survived reload. That browser check returned HTTP 200 and recorded no console/runtime errors. No live OpenAI calls were made.
+- Desktop (1440 x 1000) and mobile (390 x 844) screenshots were reviewed from the synthetic live UI check; screenshots and persistence artifacts remain outside the repository in the OS temporary directory. Browser plugin unavailable, so existing Playwright tooling was used.
+- The user's saved board differs from the dummy fixture, so it was not sent upstream for smoke testing or modified by test requests. Temporary smoke-test servers on ports 3225/3226 were stopped. The network-enabled development server remains available at http://localhost:3000 with HTTP 200 verified. No files or secrets are staged; changes are uncommitted.
+
 ## Issue #7: Place cards anywhere in another column
 
 - [x] Resolve top, middle, bottom, and empty-column insertion positions for pointer and keyboard moves.

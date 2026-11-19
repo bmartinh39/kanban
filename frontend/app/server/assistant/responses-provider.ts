@@ -1,5 +1,5 @@
 import { isRecord, parsePlan, planSchema } from "../../assistant-commands";
-import type { AssistantProvider, AssistantRequest } from "./provider";
+import { AssistantConnectionError, type AssistantProvider, type AssistantRequest } from "./provider";
 
 type ResponsesConfig = {
   endpoint: string;
@@ -29,6 +29,8 @@ export class ResponsesProvider implements AssistantProvider {
         text: { format: { type: "json_schema", name: "board_actions", strict: true, schema: planSchema } },
         ...(this.config.requireParameters ? { provider: { require_parameters: true } } : {}),
       }),
+    }).catch((error: unknown) => {
+      throw new AssistantConnectionError(isRecord(error) && error.name === "TimeoutError");
     });
     if (!response.ok) throw new Error("Assistant provider request failed");
     const output: unknown = await response.json();

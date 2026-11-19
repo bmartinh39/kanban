@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAssistantProvider } from "../app/server/assistant/providers";
-import { AssistantConfigurationError, type AssistantRequest } from "../app/server/assistant/provider";
+import { AssistantConfigurationError, AssistantConnectionError, type AssistantRequest } from "../app/server/assistant/provider";
 import { initialBoard } from "../app/board-state";
 
 const plan = { message: "Which card?", operations: [] };
@@ -61,9 +61,15 @@ describe.each(configs)("$name provider contract", config => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(result()));
     await expect(createAssistantProvider(env).generatePlan(request)).rejects.toThrow();
   });
-  it("propagates connection and timeout failures for the route to normalize", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("Timed out", "TimeoutError")));
-    await expect(createAssistantProvider(env).generatePlan(request)).rejects.toThrow("Timed out");
+  it.each([
+    [new DOMException("private timeout details", "TimeoutError"), "took too long"],
+    [new TypeError("private endpoint and selected-secret"), "server's internet access"],
+  ])("reports safe, actionable connection failures", async (failure, message) => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(failure));
+    const result = createAssistantProvider(env).generatePlan(request);
+    await expect(result).rejects.toBeInstanceOf(AssistantConnectionError);
+    await expect(result).rejects.toThrow(message);
+    await expect(result).rejects.not.toThrow(/private|selected-secret/);
   });
 });
 
