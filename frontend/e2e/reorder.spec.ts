@@ -43,15 +43,23 @@ async function pointerReorder(page: Page, targetId: string, screenshot?: string)
   const handle = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
   const target = page.getByTestId(targetId);
   // Keep the drop point clear of the viewport's auto-scroll edge.
-  await target.evaluate(card => card.scrollIntoView({ block: "center", inline: "nearest" }));
-  const [from, to] = await Promise.all([handle.boundingBox(), target.boundingBox()]);
+  await handle.evaluate(card => card.scrollIntoView({ block: "center", inline: "nearest" }));
+  const from = await handle.boundingBox();
   const x = from!.x + from!.width / 2;
   const y = from!.y + from!.height / 2;
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 8, y);
   await expect(handle).toHaveAttribute("aria-pressed", "true");
-  await page.mouse.move(x, to!.y + to!.height / 2, { steps: 10 });
+  await target.evaluate(card => card.scrollIntoView({ block: "center", inline: "nearest" }));
+  // Scrolling can trigger a preview before the pointer moves. Aim at the layout slot.
+  const to = await target.evaluate(card => {
+    const bounds = card.getBoundingClientRect();
+    const transform = getComputedStyle(card).transform;
+    const offset = transform === "none" ? 0 : new DOMMatrix(transform).m42;
+    return { x: bounds.x, y: bounds.y - offset, width: bounds.width, height: bounds.height };
+  });
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
   await expectPreview(target);
   if (screenshot) await page.screenshot({ path: screenshot, scale: "css" });
   await page.mouse.up();

@@ -21,6 +21,44 @@
 - Use popular libraries
 - As simple as possible but with an elegant UI
 
+## Approved follow-up scope
+
+The requirements above describe the original MVP. These implemented follow-ups extend that baseline:
+
+- Cards can be reordered within a column using pointer or keyboard controls.
+- An in-app AI assistant can create cards, edit titles/details, and move cards between existing columns. It cannot delete cards or create lists.
+- The assistant stays visible on the right on desktop and below a separately scrolling board on narrow screens. Use icons and a visible AI label to identify it.
+- The board and chat remain in memory and reset on reload. The assistant adds a server-side Next.js route; deployments must run a Next.js server rather than a static export.
+- New lists remain a separate backlog item. Keep the existing five columns until that issue is implemented.
+
+## Assistant architecture and configuration
+
+- Keep chat UI and board operations independent of AI vendors. The API route uses `AssistantProvider.generatePlan`; provider protocols belong in `frontend/app/server/assistant/`.
+- OpenAI and OpenRouter currently share the Responses API adapter. Add an adapter implementing the interface for a new protocol, and register it in `providers.ts`.
+- Select supported providers and models with `AI_PROVIDER` and `AI_MODEL`, followed by a server restart or redeploy. Switching an existing provider/model must not require application code changes.
+- The checked-in example pins `AI_PROVIDER=openrouter` and `AI_MODEL=nvidia/nemotron-3.5-super-vl:free`. Keep an explicit model selection for predictable behavior. Verify current endpoint availability and JSON-schema support before choosing another model; a model page alone does not prove an active endpoint exists.
+- Store real keys only in the ignored `frontend/.env.local` or hosting secrets. OpenAI uses `OPENAI_API_KEY`; OpenRouter uses `OPENROUTER_API_KEY`. `.env.example` must contain empty key placeholders. Never expose keys through `NEXT_PUBLIC_`, logs, browser responses, or commits.
+- `AI_MODEL` takes precedence over defaults. Legacy `OPENAI_MODEL` applies only to OpenAI. Read only the selected provider's key and never silently fall back to another model or provider.
+- Treat model output as untrusted: validate its schema and every target before applying the complete batch. Ambiguous/invalid requests must leave the board unchanged. Reject responses if the board snapshot changed while waiting.
+- Retain card IDs and content during edits/moves. The server proposes actions; the open browser board owns its state. Keep provider errors free of credentials and upstream private details.
+
+## Verification commands
+
+Run commands from `frontend`:
+
+```powershell
+npm run lint
+npm run typecheck
+npm run test:coverage
+npm run test:e2e
+npm run build
+```
+
+- Use the same contract tests for every provider, including model/key selection, configuration failures, malformed output, refusals, and upstream errors. Unit and browser suites must use controlled responses rather than making paid inference calls.
+- Test affected browser flows in Chromium, Firefox, and mobile Chromium. Keep pointer coordinates within the actual visible board frame; scrolling and sorting previews can invalidate earlier measurements.
+- For a live provider smoke test, use synthetic board data, the explicitly selected model, and the server route. Report live-provider checks separately from mocked coverage. Do not infer that another adapter works live from one provider's success.
+- Check `git diff --check` and verify no secret values are staged before committing. Record meaningful verification and known limitations in `PLAN.md`; keep `README.md` concise.
+
 ## Color Scheme
 
 - Accent Yellow: `#ecad0a` - accent lines, highlights

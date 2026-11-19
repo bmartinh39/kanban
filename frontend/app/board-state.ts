@@ -3,6 +3,8 @@ export type Column = { id: string; name: string; cards: Card[] };
 export type Action =
   | { type: "add"; columnId: string; card: Card }
   | { type: "delete"; cardId: string }
+  | { type: "edit"; cardId: string; title?: string; details?: string }
+  | { type: "assistant"; snapshot: Column[]; actions: Action[] }
   | { type: "rename"; columnId: string; name: string }
   | { type: "move"; cardId: string; columnId: string; index?: number };
 
@@ -33,6 +35,8 @@ export const initialBoard: Column[] = [
 
 export function boardReducer(board: Column[], action: Action): Column[] {
   switch (action.type) {
+    case "assistant":
+      return board === action.snapshot ? action.actions.reduce(boardReducer, board) : board;
     case "add":
       if (!action.card.title.trim()) return board;
       return board.map(column => column.id === action.columnId
@@ -40,6 +44,11 @@ export function boardReducer(board: Column[], action: Action): Column[] {
         : column);
     case "delete":
       return board.map(column => ({ ...column, cards: column.cards.filter(card => card.id !== action.cardId) }));
+    case "edit":
+      if (action.title !== undefined && !action.title.trim()) return board;
+      return board.map(column => ({ ...column, cards: column.cards.map(card => card.id === action.cardId
+        ? { ...card, title: action.title?.trim() ?? card.title, details: action.details?.trim() ?? card.details }
+        : card) }));
     case "rename":
       if (!action.name.trim()) return board;
       return board.map(column => column.id === action.columnId ? { ...column, name: action.name.trim() } : column);

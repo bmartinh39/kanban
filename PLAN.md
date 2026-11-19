@@ -16,10 +16,44 @@ Original MVP scope: one client-rendered board, exactly five renameable columns, 
 GitHub Issues tracks outstanding follow-up work.
 
 - [x] [#1: Reorder cards within the same column](https://github.com/bmartinh39/kanban/issues/1). Completed pointer and keyboard sorting with accessible feedback in [PR #4](https://github.com/bmartinh39/kanban/pull/4). The issue is closed as completed.
-- [ ] [#2: AI assistant to create, edit, and move cards](https://github.com/bmartinh39/kanban/issues/2). Agree the assistant interface and access to in-memory board state before choosing a provider or architecture; this may extend the client-only MVP design.
+- [x] [#2: AI assistant to create, edit, and move cards](https://github.com/bmartinh39/kanban/issues/2). Implemented as an always-visible in-app chat with provider-independent OpenAI/OpenRouter support. Unit, contract, browser, and live OpenRouter checks are complete. The example configuration pins a specific free model.
 - [ ] [#3: Create new lists](https://github.com/bmartinh39/kanban/issues/3). Replace the fixed-five-column constraint with dynamic lists; keep the existing five lists as initial dummy data.
 
 Success criteria: each issue's acceptance criteria and relevant unit/browser tests pass before it is closed. Persistence, list deletion, and additional boards are not included in these requests. The original requirements in `AGENTS.md` describe the MVP baseline; the new-lists issue explicitly supersedes its fixed-column restriction for follow-up implementation.
+
+### Issue #2 implementation plan
+
+Final delivery: `AGENTS.md` now records approved follow-up scope, provider boundaries, environment/secret handling, model pinning, action validation, and verification expectations. `README.md` covers setup and deployment. No outstanding implementation blockers remain; historical verification notes below distinguish earlier configuration gaps from the subsequent successful live OpenRouter smoke tests. OpenAI's adapter is covered by contract tests, with no paid live calls made.
+
+Provider portability follow-up:
+
+- [x] Add a provider interface and environment-selected OpenAI/OpenRouter adapters, keeping API protocols outside board and route logic.
+- [x] Configure `AI_PROVIDER` and `AI_MODEL`, use only the selected provider's secret, preserve legacy `OPENAI_MODEL`, and document deployment.
+- [x] Verify both adapters against the same contract, configuration errors and route behavior; run coverage, lint, production build, and affected chat browser checks.
+
+Success criteria: changing between supported providers/models requires only environment settings and a restart/redeploy. An unsupported provider or missing key produces a clear error without calling another provider. Neither the chat UI nor board operations depend on a specific upstream API.
+
+Provider follow-up verification: 127 unit/component/API/contract tests passed (98.63% configured line coverage), along with lint and the production build including TypeScript. All 12 affected chat browser cases passed across Chromium, Firefox, and mobile Chromium. The server is running at http://localhost:3000 and returns HTTP 200. Both configured secrets are in the ignored `.env.local`, with empty placeholders in `.env.example`; no live inference calls were made. OpenAI defaults to `gpt-6-luna`, OpenRouter to `openrouter/free`, and `AI_MODEL` overrides either. Existing `OPENAI_MODEL` remains a fallback only for OpenAI. Live provider verification is still pending.
+
+Subsequent pinned-model verification: `.env.local` and `.env.example` now explicitly select `AI_PROVIDER=openrouter` and `AI_MODEL=nvidia/nemotron-3.5-super-vl:free`. No provider implementation changed to select this model. The live OpenRouter endpoint passed three synthetic requests: create a card; edit and move an existing card in one batch; and clarify duplicate card titles without returning operations. The key is validated and the restarted server is running at http://localhost:3000. The original sandboxed server could not complete an external request; running the server with approved network access resolved it. GPT-OSS-120B's free model page exists, but its endpoint listing returned no active endpoints when checked, so it was not selected. OpenAI's paid adapter has contract-test coverage but has not been live-tested.
+
+Agreed workflow: an always-visible in-app chat operates on the currently open, in-memory board. Its window stays on the right on desktop, with robot/sparkle icons and an AI label; on mobile it remains docked below a separately scrolling board. Use TypeScript and a Next.js server route with OpenAI Responses structured output. `OPENAI_API_KEY` stays server-side; `OPENAI_MODEL` selects the model. No persistence or accounts are added. Each request includes current board state and recent chat messages; validated actions are applied atomically only if that board snapshot is still current.
+
+- [x] Add validated create/edit/move commands, preserving IDs and rejecting invalid or ambiguous targets without partial changes.
+- [x] Add the server route, bounded input, provider error handling, server-only configuration, and setup documentation.
+- [x] Add accessible chat controls, conversation feedback, loading/error states, and stale-board protection.
+- [x] Test state commands, API boundaries and provider responses, and desktop/mobile browser flows; rerun lint, types, coverage, and production build.
+- [x] Leave the server running and record verification and any missing live-provider configuration.
+
+Success criteria: all issue #2 operations and clarification/error flows work without losing existing board behavior. Automated provider tests use controlled responses; a live-provider smoke test requires a configured API key. Browser plugin not available; use the project's Playwright workflow.
+
+Verification (2026-11-19):
+
+- Lint, production build (including TypeScript), and 97 unit/component/API tests passed. Configured line coverage is 98.56%.
+- All 57 browser scenarios are verified across desktop Chromium, Firefox, and mobile Chromium. The final full run passed 56/57; after correcting the remaining mobile test to aim at the card's layout position rather than its animated preview, all three affected browser cases passed. No application code changed after the full run.
+- Tests cover create/edit/move, preserving IDs and content, ambiguous references, invalid input, provider failures/refusals, missing configuration, clarification, stale replies, keyboard controls, and panel visibility after scrolling.
+- Desktop (1440x1000) and mobile (390x844) screenshots were visually reviewed. Title/content render correctly, no framework overlay or runtime errors were observed, and the panel does not obscure board controls. Drag collision also excludes portions clipped by the mobile board frame.
+- Production server is running at http://localhost:3000. The real route returns the expected configuration response without a key. No `OPENAI_API_KEY` is configured; real-provider behavior remains unverified. The GitHub issue remains open pending live-provider verification and integration.
 
 ### Issue #1 verification
 

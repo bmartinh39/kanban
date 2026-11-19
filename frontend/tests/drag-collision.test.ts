@@ -3,7 +3,7 @@ import type { ClientRect, CollisionDetection } from "@dnd-kit/core";
 import { boardCollisionDetection } from "../app/drag-collision";
 import { active, containers, rect, rectangles } from "./drag-fixtures";
 
-function targetAt(x: number, y: number, pointer = true, viewport?: ClientRect) {
+function targetAt(x: number, y: number, pointer = true, viewport?: ClientRect, frame?: ClientRect) {
   const args: Parameters<CollisionDetection>[0] = {
     active,
     collisionRect: rect(x - 105, y - 50, 210, 100),
@@ -11,7 +11,7 @@ function targetAt(x: number, y: number, pointer = true, viewport?: ClientRect) {
     droppableRects: rectangles,
     pointerCoordinates: pointer ? { x, y } : null,
   };
-  return boardCollisionDetection(args, viewport)[0]?.id;
+  return boardCollisionDetection(args, viewport, frame)[0]?.id;
 }
 
 it("prefers the source card to its parent column", () => {
@@ -55,6 +55,11 @@ it.each([
 
 it("keeps the visible portion of a clipped destination targetable", () => {
   expect(targetAt(330, 114, true, boardViewport)).toBe("planned");
+});
+
+it("excludes board content clipped by the mobile frame above the assistant", () => {
+  expect(targetAt(115, 248, true, boardViewport, rect(0, 0, 390, 200))).toBeUndefined();
+  expect(targetAt(115, 114, true, boardViewport, rect(0, 0, 390, 200))).toBe("c1");
 });
 
 it("allows a keyboard drag to target a column beyond the scroll viewport", () => {

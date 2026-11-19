@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDndContext, useDroppable, useSensor, useSensors, type DragCancelEvent, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { ArrowDownRight, ArrowUpRight, Check, Columns3, GripVertical, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
@@ -8,6 +8,8 @@ import { columnCoordinates } from "./keyboard-coordinates";
 import { boardCollisionDetection } from "./drag-collision";
 import { createDragAnnouncements, getCardMove } from "./drag-announcements";
 import { boardReducer, initialBoard, type Card, type Column } from "./board-state";
+import { AssistantChat } from "./assistant-chat";
+import { prepareActions, type AssistantPlan } from "./assistant-commands";
 
 
 function CardContent({ card }: { card: Card }) {
@@ -98,6 +100,14 @@ function AddCardDialog({ columnName, onClose, onAdd }: { columnName: string; onC
 
 export default function Home() {
   const [board, dispatch] = useReducer(boardReducer, initialBoard);
+  const currentBoard = useRef(board);
+  useLayoutEffect(() => { currentBoard.current = board; }, [board]);
+  function applyAssistant(snapshot: Column[], plan: AssistantPlan) {
+    if (currentBoard.current !== snapshot) throw new Error("The board changed while I was thinking. Send your request again to use the latest board. No changes were made.");
+    const { actions, message } = prepareActions(snapshot, plan);
+    if (actions.length) dispatch({ type: "assistant", snapshot, actions });
+    return message;
+  }
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const addTrigger = useRef<HTMLButtonElement>(null);
@@ -133,7 +143,7 @@ export default function Home() {
       <DndContext
         id="project-board"
         sensors={sensors}
-        collisionDetection={args => boardCollisionDetection(args, boardViewport.current?.getBoundingClientRect())}
+        collisionDetection={args => boardCollisionDetection(args, boardViewport.current?.getBoundingClientRect(), boardViewport.current?.closest("main")?.getBoundingClientRect())}
         onDragStart={event => setActiveId(String(event.active.id))}
         onDragCancel={handleDragCancel}
         onDragEnd={handleDragEnd}
@@ -143,6 +153,7 @@ export default function Home() {
         <DragOverlay>{activeCard && <div className="task-card drag-preview"><div className="card-tools"><GripVertical size={16} /></div><CardContent card={activeCard} /></div>}</DragOverlay>
       </DndContext>
       <footer className="board-footer"><span><GripVertical size={14} /> Grab a handle. Find a new perspective.</span><span>Built for a little forward motion <ArrowUpRight size={14} /></span></footer>
+      <AssistantChat board={board} onApply={applyAssistant} />
     </main>
     {addingColumn && <AddCardDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={(title, details) => { dispatch({ type: "add", columnId: addingColumn.id, card: { id: crypto.randomUUID(), title, details } }); closeDialog(); }} />}
   </div>;

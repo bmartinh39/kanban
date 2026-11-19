@@ -3,13 +3,14 @@ import { closestCenter, pointerWithin, type ClientRect, type CollisionDetection 
 export function boardCollisionDetection(
   args: Parameters<CollisionDetection>[0],
   viewport?: ClientRect,
+  frame?: ClientRect,
 ): ReturnType<CollisionDetection> {
   const { active, collisionRect, droppableContainers, pointerCoordinates } = args;
 
   // Measured columns can extend past the scrolling viewport.
-  if (pointerCoordinates && viewport) {
+  if (pointerCoordinates) {
     const { x, y } = pointerCoordinates;
-    if (x < viewport.left || x >= viewport.right || y < viewport.top || y >= viewport.bottom) return [];
+    if ([viewport, frame].some(rect => rect && (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom))) return [];
   }
 
   const point = pointerCoordinates ?? {

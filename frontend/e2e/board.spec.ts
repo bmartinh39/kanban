@@ -28,15 +28,16 @@ async function expectCardOrder(column: Locator, ids: string[]) {
 async function pointerMove(page: Page, cardId: string, target: string) {
   const handle = page.getByTestId(`card-${cardId}`).getByRole("button", { name: /^Move / });
   await handle.scrollIntoViewIfNeeded();
-  const from = (await handle.boundingBox())!;
   const column = page.getByRole("region", { name: `${target} column`, exact: true });
-  await column.scrollIntoViewIfNeeded();
+  const from = (await handle.boundingBox())!;
   const to = (await column.boundingBox())!;
-  // Pointer tests use a viewport that holds the source and destination together.
+  // This wide-board scenario keeps both endpoints beside the persistent assistant.
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(from.x + from.width / 2 + 10, from.y + from.height / 2, { steps: 5 });
-  await page.mouse.move(to.x + to.width / 2, to.y + 100, { steps: 15 });
+  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.move(to.x + to.width / 2, from.y + from.height / 2, { steps: 15 });
+  await expect(column).toHaveClass(/is-over/);
   await page.mouse.up();
   await expect(column.getByTestId(`card-${cardId}`)).toBeVisible();
   await expect(page.locator(".drag-preview")).toHaveCount(0);
@@ -130,7 +131,7 @@ test("deletes only selected cards and allows adding to an empty column", async (
 });
 
 test("appends by pointer in populated and empty columns and reorders after a second arrival", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: 1900, height: 1000 });
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
   const done = page.getByRole("region", { name: "Done column", exact: true });
   await pointerMove(page, "c1", "Planned");
