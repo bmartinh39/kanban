@@ -32,12 +32,15 @@ async function pointerMove(page: Page, cardId: string, target: string) {
   const column = page.getByRole("region", { name: `${target} column`, exact: true });
   const from = (await handle.boundingBox())!;
   const to = (await column.boundingBox())!;
+  const cards = column.getByRole("article");
+  const lastCard = await cards.count() ? await cards.last().boundingBox() : null;
+  const targetY = lastCard ? lastCard.y + lastCard.height + 12 : to.y + 80;
   // This wide-board scenario keeps both endpoints beside the persistent assistant.
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(from.x + from.width / 2 + 10, from.y + from.height / 2, { steps: 5 });
   await expect(handle).toHaveAttribute("aria-pressed", "true");
-  await page.mouse.move(to.x + to.width / 2, from.y + from.height / 2, { steps: 15 });
+  await page.mouse.move(to.x + to.width / 2, targetY, { steps: 15 });
   await expect(column).toHaveClass(/is-over/);
   await page.mouse.up();
   await expect(column.getByTestId(`card-${cardId}`)).toBeVisible();

@@ -1,5 +1,26 @@
 # Kanban MVP implementation plan
 
+## Issue #7: Place cards anywhere in another column
+
+- [x] Resolve top, middle, bottom, and empty-column insertion positions for pointer and keyboard moves.
+- [x] Animate destination cards apart and show a gap preview without saving during drag; retain issue #6's direct landing animation.
+- [x] Verify exact saved order, cancellation/outside drops, content/IDs, delayed saves, conflicts, and reload behavior.
+- [x] Run lint, types, unit coverage, browser checks in Chromium/Firefox/mobile, production build, persistence tests, and diff review. Leave the server running.
+
+Success criteria: cross-column drops keep the indicated position; the preview matches the final order; each completed drop makes one revision-checked save and cancellation makes none.
+
+Verification (2026-11-19):
+
+- Cross-column collision detection chooses an insertion index from card midpoints in their current sorted order. It measures layout positions without preview transforms to avoid a moving target. Pointer drops below the final midpoint and drops into empty columns still append.
+- Destination cards animate by the dragged card's height plus stack spacing, with a subtle dashed gap. Preview transforms never mutate the saved snapshot. The existing indexed move command and revision-checked SQLite transaction save the final position once on drop; no API/database changes were needed.
+- Keyboard Left/Right selects a column, Up/Down selects any insertion position, and screen-reader announcements report the resulting position. Returning to the source, cancellation, and outside-board drops retain existing behavior. README instructions updated.
+- Lint, type checking, production build, and all 178 unit/component tests pass; line coverage is 98.49%.
+- The full controlled browser run passed 97 of 99 scenarios. Two repeated-hover mobile tests needed their coordinates corrected to scroll to the untransformed layout slot, rather than the displaced card. All 27 cross-column scenarios then passed across Chromium, Firefox, and mobile Chromium. The other 72 scenarios passed in the full run, including issue #6's landing-coordinate tests, empty-column moves, assistant flows, and conflict recovery. No unresolved test failures remain.
+- All 12 production-server persistence scenarios pass using temporary SQLite databases. The reload test now explicitly verifies insertion into the middle of a destination column. No live AI calls were made.
+- Browser plugin not available; used the project's Playwright workflow. Firefox runs outside the restricted sandbox to avoid its sandbox page-launch crashes. The persistence run used separate artifacts, moved to the OS temporary directory afterward.
+- Reviewed desktop (1440 x 1000) and mobile (390 x 844) preview and completed-drop screenshots; expected title/content and the insertion gap rendered without framework errors. Screenshot checks recorded no console/runtime errors. Evidence remains in the OS temporary directory outside the repository.
+- `git diff --check` passes; no files or secrets are staged. HTTP 200 verified at http://localhost:3000; the development server remains running. Changes are uncommitted.
+
 Original MVP scope: one client-rendered board, exactly five renameable columns, and cards containing only a title and details. Users can add cards, delete cards, and drag cards between columns. State lives in memory and resets to dummy data on reload. No accounts, backend, persistence, search, filters, or archive. Follow-up requirements are tracked below and do not change the completed MVP checklist.
 
 ## MVP baseline (2026-11-18)

@@ -6,7 +6,7 @@ export function getCardMove({ active, over }: Pick<DragEndEvent, "active" | "ove
   if (!over?.data.current) return;
   const columnId = String(over.data.current.columnId);
   const move = { type: "move" as const, cardId: String(active.id), columnId };
-  return columnId === active.data.current?.columnId && hasSortableData(over)
+  return hasSortableData(over)
     ? { ...move, index: over.data.current.sortable.index }
     : move;
 }
@@ -36,7 +36,7 @@ function describeDrag(
 
   const sameColumn = destination === source;
   const count = sameColumn ? source.cards.length : destination.cards.length + 1;
-  const position = sameColumn ? (move.index ?? index) + 1 : count;
+  const position = move.index !== undefined ? move.index + 1 : sameColumn ? index + 1 : count;
   const location = `${destination.name}, position ${position} of ${count}`;
   return phase === "preview" ? `Moving ${card.title} to ${location}.` : `Dropped ${card.title} in ${location}.`;
 }

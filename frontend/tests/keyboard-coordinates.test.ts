@@ -40,7 +40,7 @@ it.each([
   ["ArrowUp", "c1"],
   ["ArrowDown", "c3"],
   ["ArrowUp", "c4"],
-  ["ArrowDown", "c4"],
+  ["ArrowDown", "planned"],
   ["ArrowLeft", "c2"],
   ["ArrowRight", "done"],
 ] as const)("keeps the current coordinates at a boundary (%s over %s)", (code, target) => {
@@ -48,7 +48,7 @@ it.each([
 });
 
 it.each([
-  ["ArrowRight", "c2", { x: 350, y: 45 }],
+  ["ArrowRight", "c2", { x: 350, y: 150 }],
   ["ArrowLeft", "c4", { x: -150, y: 333.5 }],
 ] as const)("selects the adjacent column with %s while over %s", (code, target, expected) => {
   expect(press(code, target)).toEqual(expected);
@@ -56,6 +56,11 @@ it.each([
 
 it("ignores keys unrelated to movement", () => {
   expect(press("KeyA", "c2")).toBeUndefined();
+});
+
+it("moves between a destination card's insertion slot and the append slot", () => {
+  expect(press("ArrowDown", "c4")).toEqual({ x: 100, y: 261 });
+  expect(press("ArrowUp", "planned")).toEqual({ x: 110, y: 239 });
 });
 
 it.each(["c2", "c3"])("waits until both the dragged and target rectangles are measured (%s)", unmeasured => {

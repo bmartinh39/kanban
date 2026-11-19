@@ -24,8 +24,7 @@ export function boardCollisionDetection(
   });
   const columnId = columns[0]?.id;
 
-  // A different column is always a single append target.
-  if (!columnId || columnId !== active.data.current?.columnId) return columns;
+  if (!columnId) return columns;
 
   const cardArgs = {
     ...args,
@@ -34,6 +33,16 @@ export function boardCollisionDetection(
       data.current?.type === "card" && data.current.columnId === columnId
     ),
   };
+  if (columnId !== active.data.current?.columnId) {
+    // Use untransformed layout rectangles so the animated gap cannot change its own target.
+    const next = cardArgs.droppableContainers.toSorted((first, second) =>
+      first.data.current!.sortable.index - second.data.current!.sortable.index
+    ).find(container => {
+      const rect = args.droppableRects.get(container.id);
+      return rect && point.y < rect.top + rect.height / 2;
+    });
+    return next ? [{ id: next.id }] : columns;
+  }
   const cards = pointerWithin(cardArgs);
   if (cards.length) return cards;
 

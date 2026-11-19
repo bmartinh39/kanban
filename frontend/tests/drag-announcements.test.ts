@@ -14,6 +14,7 @@ function target(id: string): Over {
 
 it.each([
   ["c1", "Ideas, position 1 of 3"],
+  ["c4", "Planned, position 1 of 3"],
   ["planned", "Planned, position 3 of 3"],
   ["done", "Complete, position 1 of 1"],
 ])("announces the resulting position at %s", (id, position) => {

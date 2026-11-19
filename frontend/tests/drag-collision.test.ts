@@ -22,12 +22,31 @@ it("targets the last source card in the column space below the stack", () => {
   expect(targetAt(115, 480)).toBe("c3");
 });
 
-it("targets a populated destination column for append even when pointing at its card", () => {
+it("targets the next insertion card above its midpoint and appends below the last midpoint", () => {
+  expect(targetAt(365, 64)).toBe("c4");
+  expect(targetAt(365, 113)).toBe("c4");
   expect(targetAt(365, 114)).toBe("planned");
+  expect(targetAt(365, 480)).toBe("planned");
 });
 
 it("targets an empty destination column for append", () => {
   expect(targetAt(615, 114)).toBe("done");
+});
+
+it("selects middle and final insertion slots in layout order after cards were reordered", () => {
+  const first = containers.find(container => container.id === "c4")!;
+  const second = { ...first, id: "c5", key: "c5", data: { current: {
+    type: "card", columnId: "planned", sortable: { containerId: "planned", index: 1, items: ["c4", "c5"] },
+  } } };
+  const measured = new Map(rectangles).set("c5", rect(260, 175, 210, 145));
+  const target = (y: number) => boardCollisionDetection({
+    active, pointerCoordinates: { x: 365, y }, collisionRect: rect(260, y - 50, 210, 100),
+    droppableContainers: [second, ...containers], droppableRects: measured,
+  })[0]?.id;
+  expect(target(80)).toBe("c4");
+  expect(target(130)).toBe("c5");
+  expect(target(246)).toBe("c5");
+  expect(target(248)).toBe("planned");
 });
 
 it("returns no target when the pointer leaves the board while the overlay overlaps it", () => {
@@ -40,6 +59,7 @@ it("uses the overlay center to select a keyboard target in the source column", (
 
 it("uses the destination column for keyboard append", () => {
   expect(targetAt(365, 114, false)).toBe("planned");
+  expect(targetAt(365, 80, false)).toBe("c4");
 });
 
 const boardViewport = rect(15, 70, 340, 340);

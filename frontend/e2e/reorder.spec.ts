@@ -216,6 +216,7 @@ for (const input of ["pointer", "keyboard"] as const) {
         };
       });
       const targetColumn = page.getByRole("region", { name: `${destination} column`, exact: true });
+      const expectedOrder = destination === "Ideas" ? middleOrder : input === "pointer" ? ["card-c1", "card-c4", "card-c5"] : ["card-c4", "card-c5", "card-c1"];
       const handle = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
       try {
         if (input === "keyboard") {
@@ -247,7 +248,7 @@ for (const input of ["pointer", "keyboard"] as const) {
           await page.mouse.up();
         }
         await expect(page.locator(".save-status")).toHaveText("Saving...");
-        await expectOrder(targetColumn, destination === "Ideas" ? middleOrder : ["card-c4", "card-c5", "card-c1"]);
+        await expectOrder(targetColumn, expectedOrder);
         await expect(page.locator(".drag-preview")).toHaveCount(0);
         const card = targetColumn.getByTestId("card-c1");
         await expect(card).toHaveCSS("opacity", "1");
@@ -262,7 +263,7 @@ for (const input of ["pointer", "keyboard"] as const) {
         expect(writes).toBe(1);
       } finally { release(); }
       await expect(page.locator(".save-status")).toHaveText("Saved");
-      await expectOrder(targetColumn, destination === "Ideas" ? middleOrder : ["card-c4", "card-c5", "card-c1"]);
+      await expectOrder(targetColumn, expectedOrder);
       if (input === "keyboard") await expect(targetColumn.getByRole("button", { name: /^Move Give the homepage/ })).toBeFocused();
       expect(boardState.revision).toBe(1);
       expect(writes).toBe(1);

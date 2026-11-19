@@ -20,14 +20,14 @@ function CardContent({ card }: { card: Card }) {
   return <><h3>{card.title}</h3>{card.details && <p>{card.details}</p>}</>;
 }
 
-function TaskCard({ card, columnId, busy, onDelete }: { card: Card; columnId: string; busy: boolean; onDelete: () => void }) {
+function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete }: { card: Card; columnId: string; busy: boolean; insertOffset?: number; onDelete: () => void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging, transform, transition } = useSortable({
     id: card.id,
     disabled: busy,
     data: { type: "card", columnId },
   });
   const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transform: transform || insertOffset ? `translate3d(${transform?.x ?? 0}px, ${(transform?.y ?? 0) + insertOffset}px, 0)` : undefined,
     transition,
   };
   return <article ref={setNodeRef} style={style} className={`task-card${isDragging ? " is-dragging" : ""}`} data-testid={`card-${card.id}`}>
@@ -41,8 +41,14 @@ function TaskCard({ card, columnId, busy, onDelete }: { card: Card; columnId: st
 
 function BoardColumn({ column, index, busy, onAdd, onDelete, onRename }: { column: Column; index: number; busy: boolean; onAdd: (trigger: HTMLButtonElement) => void; onDelete: (id: string) => void; onRename: (name: string) => void }) {
   const { setNodeRef } = useDroppable({ id: column.id, data: { type: "column", columnId: column.id, index } });
-  const { over } = useDndContext();
+  const { active, activeNodeRect, over, droppableRects } = useDndContext();
   const isOver = over?.data.current?.columnId === column.id;
+  const inserting = isOver && active && active.data.current?.columnId !== column.id;
+  const insertionIndex = inserting ? getCardMove({ active, over })?.index ?? column.cards.length : -1;
+  const gapHeight = inserting ? (activeNodeRect?.height ?? 0) + 11 : 0;
+  const firstRect = droppableRects.get(column.cards[0]?.id ?? "");
+  const lastRect = droppableRects.get(column.cards.at(-1)?.id ?? "");
+  const insertionTop = inserting && firstRect ? (insertionIndex < column.cards.length ? over!.rect.top : (lastRect?.bottom ?? firstRect.top) + 11) - firstRect.top : 0;
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(column.name);
   const renameButton = useRef<HTMLButtonElement>(null);
@@ -61,11 +67,12 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onRename }: { colum
         <button type="button" className="icon-button" aria-label="Cancel rename" onClick={() => finishRename(false)}><X size={15} /></button>
       </form> : <><h2>{column.name}</h2><span className="column-count">{column.cards.length}</span><button ref={renameButton} aria-disabled={busy} className="icon-button rename-button" aria-label={`Rename ${column.name}`} onClick={() => { if (busy) return; setName(column.name); setRenaming(true); }}><Pencil size={13} /></button></>}
     </header>
-    <div className="card-stack">
+    <div className="card-stack" style={{ paddingBottom: gapHeight }}>
+      {inserting && <div className="insertion-preview" aria-hidden="true" style={{ top: insertionTop, height: gapHeight - 11 }} />}
       <SortableContext items={column.cards.map(card => card.id)} strategy={verticalListSortingStrategy}>
-        {column.cards.map(card => <TaskCard key={card.id} card={card} columnId={column.id} busy={busy} onDelete={() => onDelete(card.id)} />)}
+        {column.cards.map((card, cardIndex) => <TaskCard key={card.id} card={card} columnId={column.id} busy={busy} insertOffset={inserting && cardIndex >= insertionIndex ? gapHeight : 0} onDelete={() => onDelete(card.id)} />)}
       </SortableContext>
-      {!column.cards.length && <div className="empty-column"><Columns3 size={23} /><p>A little room for what&apos;s next.</p><span>Drop a card here or add one below.</span></div>}
+      {!column.cards.length && !inserting && <div className="empty-column"><Columns3 size={23} /><p>A little room for what&apos;s next.</p><span>Drop a card here or add one below.</span></div>}
     </div>
     <button className="add-card" aria-disabled={busy} onClick={event => { if (!busy) onAdd(event.currentTarget); }}><Plus size={16} /> Add a card</button>
   </section>;

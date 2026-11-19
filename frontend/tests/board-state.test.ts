@@ -2,6 +2,18 @@ import { describe, expect, it } from "vitest";
 import { boardReducer, initialBoard } from "../app/board-state";
 
 describe("board state", () => {
+  it.each([
+    [0, ["c1", "c4", "c5"]],
+    [1, ["c4", "c1", "c5"]],
+    [2, ["c4", "c5", "c1"]],
+  ])("inserts into another column at index %i with card identities and content intact", (index, expected) => {
+    const result = boardReducer(initialBoard, { type: "move", cardId: "c1", columnId: "planned", index });
+    expect(result[1].cards.map(card => card.id)).toEqual(expected);
+    expect(result[1].cards[index]).toBe(initialBoard[0].cards[0]);
+    expect(result[0].cards.map(card => card.id)).toEqual(["c2", "c3"]);
+    expect(result.flatMap(column => column.cards)).toHaveLength(12);
+    expect(initialBoard[1].cards.map(card => card.id)).toEqual(["c4", "c5"]);
+  });
   it("starts with five columns and unique cards", () => {
     expect(initialBoard).toHaveLength(5);
     const ids = initialBoard.flatMap(column => column.cards.map(card => card.id));

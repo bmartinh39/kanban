@@ -36,6 +36,8 @@ test("real database preserves card content, names, moves and order on reload", a
   await expect(handle).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("region", { name: "Planned column" })).toHaveClass(/is-over/);
+  await page.keyboard.press("ArrowUp");
+  await expect(page.getByRole("status").and(page.locator("[aria-live=assertive]"))).toContainText(`Moving ${title} to Planned, position 2 of 3`);
   await page.keyboard.press("Space");
   await expect(page.getByRole("region", { name: "Planned column" }).getByRole("heading", { name: title, exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Rename Planned", exact: true }).click();
@@ -46,7 +48,7 @@ test("real database preserves card content, names, moves and order on reload", a
   await page.reload();
   await expect(page.getByRole("region", { name: "Next up column" }).getByRole("heading", { name: title })).toHaveCount(1);
   expect(await snapshot(page)).toEqual(before);
-  expect(before.columns[1].cards.at(-1)).toMatchObject({ title, details: "Saved context" });
+  expect(before.columns[1].cards[1]).toMatchObject({ title, details: "Saved context" });
   await page.getByRole("button", { name: "Rename Next up", exact: true }).click();
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Planned");
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");
