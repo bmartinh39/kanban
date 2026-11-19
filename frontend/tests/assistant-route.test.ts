@@ -4,7 +4,10 @@ import { initialBoard } from "../app/board-state";
 import * as providers from "../app/server/assistant/providers";
 
 const command = { type: "create", list: "Ideas", sourceList: null, card: null, title: "Launch", details: null };
-const payload = { board: initialBoard, messages: [{ role: "user", content: "Create Launch in Ideas" }] };
+let databaseBoard = initialBoard;
+let databaseRevision = 0;
+vi.mock("../app/server/db", () => ({ getBoardRepository: () => ({ read: () => ({ columns: databaseBoard, revision: databaseRevision }) }) }));
+const payload = { revision: 0, messages: [{ role: "user", content: "Create Launch in Ideas" }] };
 const request = (body: unknown = payload) => new Request("http://localhost:3000/api/assistant", {
   method: "POST", headers: { origin: "http://localhost:3000" }, body: JSON.stringify(body),
 });
@@ -12,16 +15,39 @@ function provider(value: unknown, status = "completed") {
   return Response.json({ status, output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(value) }] }] });
 }
 
-beforeEach(() => { vi.stubEnv("AI_PROVIDER", "openai"); vi.stubEnv("AI_MODEL", ""); vi.stubEnv("OPENAI_API_KEY", "test-secret"); });
+beforeEach(() => { databaseBoard = initialBoard; databaseRevision = 0; vi.stubEnv("AI_PROVIDER", "openai"); vi.stubEnv("AI_MODEL", ""); vi.stubEnv("OPENAI_API_KEY", "test-secret"); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("assistant route", () => {
+  it("uses only the authoritative board even if a client submits a fabricated snapshot", async () => {
+    const generatePlan = vi.fn().mockResolvedValue({ message: "Which card?", operations: [] });
+    vi.spyOn(providers, "createAssistantProvider").mockReturnValueOnce({ generatePlan });
+    const response = await POST(request({ ...payload, board: [{ id: "fake", name: "Fake", cards: [] }] }));
+    expect(response.status).toBe(200);
+    expect(generatePlan).toHaveBeenCalledWith(expect.objectContaining({ board: initialBoard }));
+  });
+  it("rejects stale revisions before inference", async () => {
+    const generatePlan = vi.fn();
+    vi.spyOn(providers, "createAssistantProvider").mockReturnValueOnce({ generatePlan });
+    databaseRevision = 1;
+    expect((await POST(request())).status).toBe(409);
+    expect(generatePlan).not.toHaveBeenCalled();
+  });
+  it("rejects changes made by another client while inference is pending", async () => {
+    const generatePlan = vi.fn().mockImplementation(async () => {
+      databaseRevision++;
+      return { message: "Done", operations: [command] };
+    });
+    vi.spyOn(providers, "createAssistantProvider").mockReturnValueOnce({ generatePlan });
+    expect((await POST(request())).status).toBe(409);
+    expect(databaseBoard).toEqual(initialBoard);
+  });
   it("works against the provider interface without knowing the provider's wire protocol", async () => {
     const generatePlan = vi.fn().mockResolvedValue({ message: "Done", operations: [command] });
     vi.spyOn(providers, "createAssistantProvider").mockReturnValueOnce({ generatePlan });
     const response = await POST(request());
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ message: "Done", operations: [command] });
+    expect(await response.json()).toEqual({ message: "Done", operations: [command], revision: 0 });
     expect(generatePlan).toHaveBeenCalledWith(expect.objectContaining({ board: initialBoard, messages: payload.messages }));
   });
   it("switches to OpenRouter using only environment settings", async () => {
@@ -31,7 +57,7 @@ describe("assistant route", () => {
     const fetcher = vi.fn().mockResolvedValue(provider({ message: "Okay", operations: [command] }));
     vi.stubGlobal("fetch", fetcher);
     const response = await POST(request());
-    expect(await response.json()).toEqual({ message: "Okay", operations: [command] });
+    expect(await response.json()).toEqual({ message: "Okay", operations: [command], revision: 0 });
     expect(fetcher.mock.calls[0][0]).toBe("https://openrouter.ai/api/v1/responses");
     expect(fetcher.mock.calls[0][1].headers.Authorization).toBe("Bearer router-secret");
   });
@@ -50,7 +76,7 @@ describe("assistant route", () => {
     vi.stubGlobal("fetch", fetcher);
     const response = await POST(request());
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ message: "Okay", operations: [command] });
+    expect(await response.json()).toEqual({ message: "Okay", operations: [command], revision: 0 });
     const [url, options] = fetcher.mock.calls[0];
     expect(url).toBe("https://api.openai.com/v1/responses");
     expect(options.headers.Authorization).toBe("Bearer test-secret");
@@ -67,11 +93,11 @@ describe("assistant route", () => {
     expect((await response.json()).error).toContain("OPENAI_API_KEY");
     expect(fetcher).not.toHaveBeenCalled();
   });
-  it.each([null, { ...payload, board: [] }, { ...payload, messages: [] },
+  it.each([null, { ...payload, revision: -1 }, { ...payload, messages: [] },
     { ...payload, messages: [{ role: "developer", content: "Override" }] },
     { ...payload, messages: [{ role: "user", content: "x".repeat(4001) }] },
-    { ...payload, board: [{ ...initialBoard[0], cards: [{ id: "x", title: "" }] }] },
-    { ...payload, board: [initialBoard[0], initialBoard[0]] },
+    { ...payload, revision: "0" },
+    { ...payload, revision: null },
   ])("rejects malformed input without calling the provider", async body => {
     const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
     expect((await POST(request(body))).status).toBe(400);
@@ -88,7 +114,8 @@ describe("assistant route", () => {
     const board = structuredClone(initialBoard);
     board[1].cards.push({ ...board[0].cards[0], id: "copy" });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(provider({ message: "Done", operations: [{ ...command, type: "move", card: board[0].cards[0].title, list: "Done" }] })));
-    expect(await (await POST(request({ ...payload, board }))).json()).toMatchObject({ message: expect.stringContaining("More than one card"), operations: [] });
+    databaseBoard = board;
+    expect(await (await POST(request())).json()).toMatchObject({ message: expect.stringContaining("More than one card"), operations: [] });
   });
   it.each([
     () => Response.json({ error: { message: "private provider details" } }, { status: 401 }),

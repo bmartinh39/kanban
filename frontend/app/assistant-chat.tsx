@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Bot, Send, Sparkles } from "lucide-react";
 import { parsePlan, type AssistantPlan, type ChatMessage } from "./assistant-commands";
 import type { Column } from "./board-state";
+import { validRevision } from "./board-commands";
 
-export function AssistantChat({ board, onApply }: { board: Column[]; onApply: (snapshot: Column[], plan: AssistantPlan) => string }) {
+export function AssistantChat({ board, revision, disabled, onRefresh, onApply }: { board: Column[]; revision: number; disabled: boolean; onRefresh: () => void; onApply: (snapshot: Column[], plan: AssistantPlan, revision: number) => Promise<string> }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -18,7 +19,7 @@ export function AssistantChat({ board, onApply }: { board: Column[]; onApply: (s
   }, [messages, busy, error]);
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!draft.trim() || busy) return;
+    if (!draft.trim() || busy || disabled) return;
     const snapshot = board;
     const conversation: ChatMessage[] = [...messages, { role: "user", content: draft.trim() }];
     setMessages(conversation);
@@ -31,11 +32,13 @@ export function AssistantChat({ board, onApply }: { board: Column[]; onApply: (s
       const response = await fetch("/api/assistant", {
         method: "POST", headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ board: snapshot, messages: conversation.slice(-19) }),
+        body: JSON.stringify({ revision, messages: conversation.slice(-19) }),
       });
       const result = await response.json();
+      if (response.status === 409) onRefresh();
       if (!response.ok) throw new Error(result.error || "The assistant is unavailable. Try again.");
-      const message = onApply(snapshot, parsePlan(result));
+      if (!validRevision(result.revision) || result.revision !== revision) throw new Error("The board changed while I was thinking. Send your request again. No changes were made.");
+      const message = await onApply(snapshot, parsePlan(result), result.revision);
       setMessages([...conversation, { role: "assistant", content: message }]);
     } catch (error) {
       if (!controller.signal.aborted) {
@@ -59,7 +62,7 @@ export function AssistantChat({ board, onApply }: { board: Column[]; onApply: (s
       <form className="assistant-form" onSubmit={submit}>
         <label htmlFor="assistant-request">What would you like to change?</label>
         <textarea id="assistant-request" value={draft} maxLength={4000} rows={3} placeholder="Tell me what needs to happen..." onChange={event => setDraft(event.target.value)} />
-        <div><span>Changes apply to this session.</span><button className="primary-button" disabled={busy || !draft.trim()}>Send <Send size={14} /></button></div>
+        <div><span>Board changes are saved.</span><button className="primary-button" disabled={busy || disabled || !draft.trim()}>Send <Send size={14} /></button></div>
       </form>
     </section>;
 }

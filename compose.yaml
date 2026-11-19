@@ -1,0 +1,18 @@
+services:
+  kanban:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_PATH: /data/kanban.sqlite
+      AI_PROVIDER: ${AI_PROVIDER:-openrouter}
+      AI_MODEL: ${AI_MODEL:-nvidia/nemotron-3.5-super-vl:free}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      - kanban-data:/data
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+volumes:
+  kanban-data:

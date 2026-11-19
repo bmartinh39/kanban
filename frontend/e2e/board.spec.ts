@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { type Locator, type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -168,7 +169,7 @@ test("appends by pointer in populated and empty columns and reorders after a sec
   await expect(done.getByTestId("card-c1")).toContainText("Explore a quieter layout");
 });
 
-test("appends, cancels, and reorders by keyboard after scrolling, then resets on reload", async ({ page }, testInfo) => {
+test("appends, cancels, and reorders by keyboard after scrolling, then persists on reload", async ({ page }, testInfo) => {
   const ideas = page.getByRole("region", { name: "Ideas column", exact: true });
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
   const handle = planned.getByTestId("card-c1").getByRole("button", { name: /^Move / });
@@ -195,8 +196,8 @@ test("appends, cancels, and reorders by keyboard after scrolling, then resets on
   await expect(page.getByRole("article")).toHaveCount(12);
 
   await page.reload();
-  await expectCardOrder(ideas, ["c1", "c2", "c3"]);
-  await expectCardOrder(planned, ["c4", "c5"]);
+  await expectCardOrder(ideas, ["c2", "c3"]);
+  await expectCardOrder(planned, ["c4", "c1", "c5"]);
   await expect(page.getByRole("article")).toHaveCount(12);
 });
 
@@ -229,7 +230,7 @@ test("announces sorting a new card using its title, renamed column, and position
   await expect(incoming.getByRole("article").nth(2)).toContainText("Write release notes");
 });
 
-test("handles a complete workflow and resets everything on reload", async ({ page }) => {
+test("handles a complete workflow and persists changes on reload", async ({ page }) => {
   await addCard(page, "Ideas", "Session task", "Session details");
   await keyboardMove(page, "Session task", "Planned");
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
@@ -240,7 +241,7 @@ test("handles a complete workflow and resets everything on reload", async ({ pag
   await page.getByRole("button", { name: "Delete Session task", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Session task" })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole("region", { name: "Planned column", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Next up column", exact: true })).toBeVisible();
   await expect(page.getByRole("article")).toHaveCount(12);
 });
 

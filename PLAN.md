@@ -15,11 +15,71 @@ Original MVP scope: one client-rendered board, exactly five renameable columns, 
 
 GitHub Issues tracks outstanding follow-up work.
 
+- [x] [#5: Add database support](https://github.com/bmartinh39/kanban/issues/5). Implemented and verified; decisions, acceptance criteria, and results are recorded below.
+
 - [x] [#1: Reorder cards within the same column](https://github.com/bmartinh39/kanban/issues/1). Completed pointer and keyboard sorting with accessible feedback in [PR #4](https://github.com/bmartinh39/kanban/pull/4). The issue is closed as completed.
 - [x] [#2: AI assistant to create, edit, and move cards](https://github.com/bmartinh39/kanban/issues/2). Implemented as an always-visible in-app chat with provider-independent OpenAI/OpenRouter support. Unit, contract, browser, and live OpenRouter checks are complete. The example configuration pins a specific free model.
 - [ ] [#3: Create new lists](https://github.com/bmartinh39/kanban/issues/3). Replace the fixed-five-column constraint with dynamic lists; keep the existing five lists as initial dummy data.
 
-Success criteria: each issue's acceptance criteria and relevant unit/browser tests pass before it is closed. Persistence, list deletion, and additional boards are not included in these requests. The original requirements in `AGENTS.md` describe the MVP baseline; the new-lists issue explicitly supersedes its fixed-column restriction for follow-up implementation.
+Success criteria: each issue's acceptance criteria and relevant unit/browser tests pass before it is closed. Issue #5 adds board persistence; list deletion and additional boards remain outside these requests. The original requirements in `AGENTS.md` describe the MVP baseline; the new-lists issue explicitly supersedes its fixed-column restriction for follow-up implementation.
+
+### Issue #5: Database implementation decision (2026-11-19)
+
+Decision: use SQLite through `better-sqlite3` in the existing Next.js Node.js server. Use parameterized SQL and small numbered SQL migrations, without an ORM, a separate backend, or a database service. Add `@types/better-sqlite3` for development; resolve and lock current compatible releases during implementation. The native driver must be installed/built for the Linux container target rather than copied from Windows.
+
+SQLite fits one shared board and short, infrequent write transactions on one VPS. Start with one application instance and a database on local persistent storage. Reconsider PostgreSQL when deployment needs independent application replicas/hosts or sustained concurrent writes; increasing card count alone is not the migration trigger. `node:sqlite` is an alternative but remains experimental in the installed Node.js 24.11.1 runtime; prefer the established driver for this change.
+
+Scope: persist column names, cards, column order, and card order. Keep five initial columns, the existing UI and AI provider interface, and session-only chat. Issue #3 still owns creating lists. There is one shared saved board across browsers, without accounts or live collaboration. This follow-up supersedes the MVP's reset-on-reload behavior and browser-owned authoritative board state. AGENTS.md and README.md now document this follow-up; retain the original MVP history above.
+
+Minimal relational schema:
+
+| Table | Fields and constraints | Purpose |
+| --- | --- | --- |
+| `board_state` | `id INTEGER PRIMARY KEY CHECK (id = 1)`, `revision INTEGER NOT NULL CHECK (revision >= 0)` | One metadata row for atomic optimistic concurrency and first-run initialization. |
+| `columns` | `id TEXT PRIMARY KEY`, `name TEXT NOT NULL CHECK (length(trim(name)) > 0)`, `position INTEGER NOT NULL CHECK (position >= 0)` | Existing stable column IDs, names, and display order. |
+| `cards` | `id TEXT PRIMARY KEY`, `column_id TEXT NOT NULL REFERENCES columns(id)`, `title TEXT NOT NULL CHECK (length(trim(title)) > 0)`, `details TEXT NOT NULL DEFAULT ''`, `position INTEGER NOT NULL CHECK (position >= 0)` | One row per card; no duplicated column name or nested JSON. |
+
+Add indexes on `columns(position)` and `cards(column_id, position)`. Maintain contiguous integer positions transactionally when adding/deleting/moving cards; update only affected rows. Avoid unique position constraints that complicate intermediate reorder updates. Do not add users, board ownership, timestamps, counts, chat tables, or soft deletes. Use SQLite `PRAGMA user_version` to track the schema migration version. The singleton metadata row is initialization evidence: a deliberately emptied board must never be reseeded.
+
+- [x] Phase 1: Add server-only database access under `frontend/app/server/db/`, SQL migrations, and a configurable `DATABASE_PATH` (container: `/data/kanban.sqlite`). Enable foreign keys, WAL, a bounded busy timeout, and `synchronous=FULL`. Run migrations as a deployment/startup step before serving traffic; initialize dummy data once in a transaction. Keep build steps independent of a production database. Ignore local databases and their journal/WAL/SHM files.
+
+  Success criteria: a fresh temporary database initializes once; reopening it preserves edits and deletions; migration failures stop startup; lint/types/build pass with the native driver.
+
+- [x] Phase 2: Add uncached `GET /api/board` and `POST /api/board/actions` using the Node.js runtime. Reads return `{ columns, revision }`. Writes accept an expected revision and a bounded, validated batch of supported domain commands. In one short transaction, check the revision, resolve/validate every target, apply the whole batch, increment the revision, and return canonical board state. A mismatch returns HTTP 409 with no writes; invalid commands also leave state unchanged. Never accept arbitrary SQL or silently overwrite the full board. Preserve IDs and content through moves and edits, and check same-origin mutations.
+
+  Success criteria: all existing operations persist with correct ordering; invalid batches roll back; two clients writing the same revision cannot silently overwrite each other. Validation covers stale/missing IDs, duplicate IDs, blank names/titles, and invalid positions.
+
+- [x] Phase 3: Introduce a small client board-state hook using React state and fetch, reusing the existing reducer for local projections. Load the saved board with clear loading/error/retry states. Keep drag overlays and sorting previews local; save once on a completed drop. Allow one pending mutation per browser, show saving/error feedback, and adopt the canonical response after success. On failure reload authoritative state; on 409 explain that the board changed and let the user retry. Do not silently replay failed commands or restore dummy data on load errors. No React Query or other client state dependency is needed for this single resource.
+
+  Success criteria: add/delete/rename/move/reorder survive reload; controls and focus remain usable; failed saves cannot appear as confirmed changes; drag cancellation writes nothing.
+
+- [x] Phase 4: Adapt the assistant route to read the authoritative database snapshot and revision rather than trusting a browser-supplied board. Keep `AssistantProvider.generatePlan` and the current provider adapters unchanged. Generate and validate proposals outside database transactions. Return the snapshot revision with each plan; apply validated actions through the same atomic mutation path only if both the local snapshot and database revision still match. Revalidate all submitted commands on the server. Report assistant success only after the save commits; retain clarification/refusal/no-op behavior without revision changes.
+
+  Success criteria: manual and assistant edits use the same persistence rules; intervening changes from either tab reject stale plans; provider errors and invalid batches write nothing; no database lock is held during inference; existing provider contract tests remain controlled and pass.
+
+- [x] Phase 5: Add a production Dockerfile and Compose service with a named volume mounted at `/data`; run migrations before starting Next.js and ensure the non-root app user can write the directory, including WAL/SHM files. Keep secrets in runtime configuration. Provide a small backup command using the driver's SQLite backup API, plus concise restore instructions while the application is stopped. Do not copy a live `.sqlite` file alone or place the active database on a network filesystem. Verify the Linux image includes the native driver.
+
+  Success criteria: saved data survives process restart and container recreation; a backup restores into a fresh volume with matching content/order; failed migration does not start the server; document that deleting the volume deletes the data.
+
+- [x] Phase 6: Add real SQLite tests against isolated temporary files for constraints, migrations, first-run seeding, reopen persistence, order, rollback, and competing revisions. Retain isolated UI tests with a per-test controlled persistence API; do not share production storage or a reset endpoint. Add a separate serial browser integration suite with an isolated database/server covering reload persistence, two-tab conflict, saved assistant batches, and failed saves. Update existing reset-on-reload expectations. Run affected flows in Chromium, Firefox, and mobile Chromium, plus the full verification commands and `git diff --check`.
+
+  Success criteria: lint, typecheck, coverage, browser suites, and build pass; container restart and backup/restore checks pass; record actual verification and remaining limits here. Leave the application running for review after implementation.
+
+Known limits: no automatic cross-tab push updates, offline queue, chat persistence, authentication, or new-list functionality. Other browsers see saved changes on reload; stale writes are detected. Existing browser-only session state cannot be recovered after reload, so there is no historical data migration. Database and container verification is complete as recorded below.
+
+Decision references: [SQLite deployment guidance](https://www.sqlite.org/whentouse.html), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3), [SQLite WAL](https://www.sqlite.org/wal.html), [online backups](https://www.sqlite.org/backup.html), and [Node.js 24 SQLite stability](https://nodejs.org/download/release/v24.9.0/docs/api/sqlite.html).
+
+Verification (2026-11-19):
+
+- Lint, typecheck, production build, and all 172 unit/component/API/provider/database tests pass. Configured coverage: 98.62% lines, 97.31% statements, 96.12% functions, and 92.18% branches; the database, board API, validation, HTTP boundary, and persistence hook are included.
+- All 57 controlled UI browser scenarios pass across Chromium, Firefox, and mobile Chromium. All 12 additional production-server scenarios with a real isolated SQLite database pass across those same projects. Firefox requires execution outside the sandbox. Browser plugin not available; used the existing Playwright workflow.
+- The persistence suite verifies reloads, column names, card details/IDs/order, keyboard moves, two-tab conflicts, assistant saves and stale proposals, and failed saves. A mobile test was corrected to wait for the actual sorting announcement before dropping. UI regressions found during implementation were fixed: keyboard focus restores after the saved card remounts; temporary save gating preserves focus on add/rename triggers.
+- Production review at http://localhost:3001 (also verified through 127.0.0.1) passed page identity, nonblank content, no framework overlay, no application console errors, and desktop/mobile visual review at 1440x1000 and 390x844. Screenshots are in the OS temporary directory as `kanban-issue5-desktop.png` and `kanban-issue5-mobile.png`. A native production rename survived reload and was restored afterward; the saved board retains its 12 initial cards.
+- Clean Linux Docker build passes with the native driver compiled in the build stage, without build tools in the runtime image. Repaired missing cross-platform optional lockfile entries exposed by Linux `npm ci`. The final pruned production dependency audit reports zero vulnerabilities; seven existing moderate development dependency advisories remain.
+- Compose configuration validates. An isolated non-root container (UID 1000) accepted real HTTP mutations through a published host port. Its saved board matched exactly after container recreation on the same volume. The live backup command restored into a fresh volume with identical IDs, names, details, ordering, and revision; SQLite `integrity_check` returned `ok`. Deliberately setting an unsupported schema version caused startup to exit before serving traffic. Disposable containers and their synthetic volumes were removed afterward.
+- Fixed origin checks to use the browser-facing Host address when Next.js normalizes its internal URL, including published Docker ports. Cross-origin rejection is retained and regression-tested.
+- Board data stays in the ignored local `frontend/data` directory. The final native production server is running at http://localhost:3001, leaving the pre-existing port 3000 process untouched. Secret values and local databases are excluded from version control. GitHub issue changes were not part of implementation.
+- Live inference was not rerun for this change. Provider contract tests and browser assistant responses are controlled; the previously verified OpenRouter adapter is unchanged. Chat remains session-only, other browsers refresh on reload, and deployment uses one app instance with a local persistent volume.
 
 ### Issue #2 implementation plan
 

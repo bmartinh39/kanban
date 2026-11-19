@@ -184,3 +184,8 @@ dialog textarea { resize: vertical; min-height: 90px; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
 }
+/* Persistence feedback shares the board's existing typography and palette. */
+.board-loading { padding: 3rem; }
+.save-status { color: #536778; font-size: 12px; }
+.storage-error { display: flex; align-items: center; gap: 12px; padding: 8px 0; color: #753991; }
+.storage-error p { margin: 0; font-size: 13px; }

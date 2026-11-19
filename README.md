@@ -1,6 +1,6 @@
-﻿# Forma Kanban
+# Forma Kanban
 
-A single-board Next.js app with five renameable columns, card creation/deletion, and pointer/keyboard drag-and-drop. Data lives in memory and resets on reload.
+A single-board Next.js app with five renameable columns, card creation/deletion, pointer/keyboard sorting, and an AI assistant. The shared board persists in SQLite; chat resets on reload.
 
 Requires Node.js 24.11+ and npm.
 
@@ -10,9 +10,15 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. On a card's drag handle, press Space to pick up, Up/Down to reorder, Left/Right to move between columns, Space to drop, or Escape to cancel.
+Open http://localhost:3000. On a card's handle, use Space to pick up/drop, arrows to reorder/move, and Escape to cancel. Changes save automatically. Conflicting saves reload the latest board for review; other tabs refresh on reload.
 
-Checks (from `frontend`):
+`npm run dev` and `npm start` run migrations and seed dummy data once. `DATABASE_PATH` defaults to `./data/kanban.sqlite`. An empty saved board is never reseeded. Keep database files out of Git.
+
+Copy `frontend/.env.example` to `frontend/.env.local` to configure AI. Set `AI_PROVIDER` (`openai` or `openrouter`), `AI_MODEL`, and the selected provider's `OPENAI_API_KEY` or `OPENROUTER_API_KEY`. Restart/redeploy after changes. The example pins `openrouter` / `nvidia/nemotron-3.5-super-vl:free`; no model/provider fallback occurs. Legacy `OPENAI_MODEL` applies only to OpenAI when `AI_MODEL` is unset. Without a key the board still works. Keys stay server-side, never in `NEXT_PUBLIC_`, logs, commits, or images.
+
+The assistant can create, edit, and move cards. Providers implement `AssistantProvider.generatePlan`; current OpenAI/OpenRouter protocols live in `app/server/assistant/`. Proposals use the saved board revision and commit atomically. Recent chat and board content go to the selected provider with `store: false`; upstream retention depends on the provider.
+
+Checks, from `frontend`:
 
 ```powershell
 npm run lint
@@ -21,21 +27,36 @@ npm run test:coverage
 npx playwright install chromium firefox
 npm run test:e2e
 npm run build
+npm run test:e2e:persistence
 ```
 
-Use `npm start` after building to run the production server. Browser tests cover desktop Chromium, Firefox, and mobile Chromium.
+UI suites use isolated controlled APIs. The persistence suite starts a production server on port 3220 with a temporary real database; build first. Browser coverage includes Chromium, Firefox, and mobile Chromium. Automated tests never call paid inference.
 
-The always-visible AI assistant sits beside the board on desktop and below it on mobile. Copy `frontend/.env.example` to `frontend/.env.local` and configure the provider:
+Deploy on a VPS with Docker Compose, from the repository root:
 
-| `AI_PROVIDER` | Secret | Default model when `AI_MODEL` is empty |
-| --- | --- | --- |
-| `openai` (default) | `OPENAI_API_KEY` | `gpt-6-luna` |
-| `openrouter` | `OPENROUTER_API_KEY` | `openrouter/free` |
+```powershell
+docker compose up -d --build
+```
 
-Switch supported providers or models through environment settings, then restart (or redeploy); no code changes are needed. The example pins `AI_PROVIDER=openrouter` and `AI_MODEL=nvidia/nemotron-3.5-super-vl:free`, avoiding automatic model selection. Existing `OPENAI_MODEL` is supported for OpenAI when `AI_MODEL` is unset. OpenRouter models must support JSON schema; routing requires parameter support. Provider errors leave the board unchanged, with no automatic fallback to a paid model or another provider.
+The app binds to localhost:3000 for a reverse proxy. Pass AI settings/secrets through the hosting environment or a local root `.env` file (ignored). One application instance uses the named `kanban-data` volume mounted at `/data`, including SQLite WAL/SHM files. Deleting that volume deletes saved data. Use local disk; consider PostgreSQL when multiple hosts or sustained concurrent writers are needed. There are no accounts; deployment access controls remain external.
 
-The route depends on `AssistantProvider.generatePlan`; the Responses adapter handles both current providers. A provider using a different API implements that interface and is registered in `app/server/assistant/providers.ts`. Board logic and chat UI stay independent of provider protocols.
+Create a consistent live backup and copy it off the VPS (create the local `backups` folder first):
 
-Each message sends the current board and recent conversation to the selected provider. The app keeps no persistent board/chat state and requests `store: false`; upstream retention policies depend on the provider. Without the selected provider's key, the board works and chat shows a configuration message.
+```powershell
+docker compose exec kanban npm run db:backup -- /data/backup.sqlite
+docker compose cp kanban:/data/backup.sqlite ./backups/board.sqlite
+```
 
-Deploy as a Next.js server (not a static export). Configure `AI_PROVIDER`, optional `AI_MODEL`, and the selected provider's key in the hosting environment; redeploy after changes. Keys belong in server-side secrets, never `NEXT_PUBLIC_` variables or `.env.example`. This MVP has no accounts: only enable the paid assistant in a trusted deployment; authentication and public-use quotas require separate scope.
+For local development: `npm run db:backup -- ./data/backup.sqlite` from `frontend`. Never copy the active database file alone while it is running.
+
+To restore, stop the application, use a fresh Compose project/empty volume, create its stopped container, copy the backup, then start it. Keep the old project/volume until verification succeeds:
+
+```powershell
+docker compose stop kanban
+docker compose -p kanban-restore create --build kanban
+docker compose -p kanban-restore cp ./backups/board.sqlite kanban:/data/kanban.sqlite
+docker compose -p kanban-restore run --rm --no-deps --user root --entrypoint chown kanban node:node /data/kanban.sqlite
+docker compose -p kanban-restore up -d
+```
+
+Use a new project name if `kanban-restore` already contains data. For non-Docker hosting, run `npm run build` then `npm start` with a writable persistent database directory; static export is unsupported.

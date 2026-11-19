@@ -1,6 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
+import { controlledBoard } from "./controlled-board";
+
+beforeEach(() => { controlledBoard(); });
 
 afterEach(cleanup);
 // jsdom has no native modal dialog implementation. Browser tests cover focus trapping.

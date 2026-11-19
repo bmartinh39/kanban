@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const operation = (fields: Record<string, unknown>) => ({
   type: "create", list: null, sourceList: null, card: null, title: null, details: null, ...fields,
@@ -14,14 +15,15 @@ async function send(page: Page, text: string) {
   await page.getByRole("button", { name: "Send", exact: true }).click();
 }
 
-test("assistant creates, edits and moves cards using the current board, then reload resets it", async ({ page }) => {
+test("assistant creates, edits and moves cards using the current board, then reload preserves it", async ({ page, boardState }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   let turn = 0;
   let cardId = "";
   await page.route("**/api/assistant", async route => {
     const body = route.request().postDataJSON();
-    expect(body.board).toHaveLength(5);
+    expect(body.revision).toBe(boardState.revision);
+    expect(body).not.toHaveProperty("board");
     expect(JSON.stringify(body)).not.toContain("OPENAI_API_KEY");
     const responses = [
       operation({ list: "Planned", title: "Release notes", details: "Write the draft" }),
@@ -29,13 +31,13 @@ test("assistant creates, edits and moves cards using the current board, then rel
       operation({ type: "move", card: "Launch notes", sourceList: "Planned", list: "Done" }),
     ];
     if (turn > 0) {
-      const card = body.board[1].cards.at(-1);
+      const card = boardState.columns[1].cards.at(-1)!;
       expect(card.title).toBe(turn === 1 ? "Release notes" : "Launch notes");
       if (turn === 1) cardId = card.id;
       else expect(card.id).toBe(cardId);
       expect(body.messages).toHaveLength(turn * 2 + 1);
     }
-    await route.fulfill({ json: { message: "Done", operations: [responses[turn++]] } });
+    await route.fulfill({ json: { message: "Done", revision: body.revision, operations: [responses[turn++]] } });
   });
   await openChat(page);
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
@@ -52,8 +54,8 @@ test("assistant creates, edits and moves cards using the current board, then rel
   await expect(card).toContainText("Ready for review");
   await expect(page.getByText("13 cards", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("article")).toHaveCount(12);
-  await expect(page.getByRole("heading", { name: "Launch notes" })).toHaveCount(0);
+  await expect(page.getByRole("article")).toHaveCount(13);
+  await expect(page.getByRole("heading", { name: "Launch notes" })).toHaveCount(1);
   expect(errors).toEqual([]);
 });
 
@@ -65,7 +67,7 @@ test("assistant preserves cards on clarification, invalid targets and service fa
       { message: "Done", operations: [operation({ list: "Missing list", title: "Do not create" })] },
       { error: "The assistant is not configured yet. Set OPENAI_API_KEY on the server to enable it." },
     ];
-    await route.fulfill({ status: turn === 2 ? 503 : 200, json: responses[turn++] });
+    await route.fulfill({ status: turn === 2 ? 503 : 200, json: { ...responses[turn++], revision: route.request().postDataJSON().revision } });
   });
   await openChat(page);
   await send(page, "Move that card");
@@ -84,7 +86,7 @@ test("assistant rejects a stale reply and keeps the board's manual changes", asy
   const wait = new Promise<void>(resolve => { release = resolve; });
   await page.route("**/api/assistant", async route => {
     await wait;
-    await route.fulfill({ json: { message: "Done", operations: [operation({ list: "Ideas", title: "Stale task" })] } });
+    await route.fulfill({ json: { message: "Done", revision: route.request().postDataJSON().revision, operations: [operation({ list: "Ideas", title: "Stale task" })] } });
   });
   await openChat(page);
   await send(page, "Create Stale task in Ideas");

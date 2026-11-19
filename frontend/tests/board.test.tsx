@@ -4,8 +4,9 @@ import { describe, expect, it } from "vitest";
 import Home from "../app/page";
 
 describe("board interface", () => {
-  it("renders exactly five populated columns", () => {
+  it("renders exactly five populated columns", async () => {
     render(<Home />);
+    await screen.findByRole("button", { name: "Rename Ideas" });
     expect(screen.getAllByRole("region", { name: / column$/ })).toHaveLength(5);
     expect(screen.getAllByRole("article")).toHaveLength(12);
     expect(screen.getByText("12 cards")).toBeInTheDocument();
@@ -13,6 +14,7 @@ describe("board interface", () => {
   it("announces the picked-up card title and its current position", async () => {
     const user = userEvent.setup();
     render(<Home />);
+    await screen.findByRole("button", { name: "Rename Ideas" });
     const handle = screen.getByRole("button", { name: "Move Give the homepage a fresh start" });
     handle.focus();
     await user.keyboard("[Space]");
@@ -27,6 +29,7 @@ describe("board interface", () => {
   it("validates card creation, saves title and details, and updates the selected column", async () => {
     const user = userEvent.setup();
     render(<Home />);
+    await screen.findByRole("button", { name: "Rename Ideas" });
     const column = screen.getByRole("region", { name: "Planned column" });
     await user.click(within(column).getByRole("button", { name: "Add a card" }));
     expect(screen.getByRole("button", { name: "Add card" })).toBeDisabled();
@@ -44,6 +47,7 @@ describe("board interface", () => {
   it("supports title-only cards", async () => {
     const user = userEvent.setup();
     render(<Home />);
+    await screen.findByRole("button", { name: "Rename Ideas" });
     await user.click(screen.getAllByRole("button", { name: "Add a card" })[0]);
     await user.type(screen.getByLabelText(/Title/), "Title only");
     await user.click(screen.getByRole("button", { name: "Add card" }));
@@ -52,6 +56,7 @@ describe("board interface", () => {
   it.each(["Cancel", "Close dialog", "backdrop", "Escape"])("cancels creation with %s without adding a card", async method => {
     const user = userEvent.setup();
     render(<Home />);
+    await screen.findByRole("button", { name: "Rename Ideas" });
     await user.click(screen.getAllByRole("button", { name: "Add a card" })[0]);
     await user.type(screen.getByLabelText(/Title/), "Do not save");
     if (method === "backdrop") fireEvent.click(screen.getByRole("dialog"));
@@ -63,6 +68,7 @@ describe("board interface", () => {
   it("renames a column, rejects whitespace, and cancels subsequent changes", async () => {
     const user = userEvent.setup();
     render(<Home />);
+    await screen.findByRole("button", { name: "Rename Ideas" });
     await user.click(screen.getByRole("button", { name: "Rename Ideas" }));
     await user.clear(screen.getByLabelText("Column name"));
     await user.type(screen.getByLabelText("Column name"), "  ");
@@ -82,6 +88,7 @@ describe("board interface", () => {
   it("deletes intended cards and exposes an empty-column state", async () => {
     const user = userEvent.setup();
     render(<Home />);
+    await screen.findByRole("button", { name: "Rename Ideas" });
     const done = screen.getByRole("region", { name: "Done column" });
     for (const button of within(done).getAllByRole("button", { name: /^Delete / })) await user.click(button);
     expect(within(done).queryAllByRole("article")).toHaveLength(0);
@@ -91,6 +98,7 @@ describe("board interface", () => {
   it("keeps keyboard focus within the creation dialog in both directions", async () => {
     const user = userEvent.setup();
     render(<Home />);
+    await screen.findByRole("button", { name: "Rename Ideas" });
     await user.click(screen.getAllByRole("button", { name: "Add a card" })[0]);
     expect(screen.getByLabelText(/Title/)).toHaveFocus();
     const close = screen.getByRole("button", { name: "Close dialog" });

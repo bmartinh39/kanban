@@ -10,5 +10,10 @@ test-results/
 .DS_Store
 Thumbs.db
 *.log
+data/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
 .idea/
 .vscode/

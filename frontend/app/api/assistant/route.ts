@@ -1,5 +1,9 @@
 import { isRecord, prepareActions, type ChatMessage } from "../../assistant-commands";
 import type { Column } from "../../board-state";
+import { validRevision } from "../../board-commands";
+import { getBoardRepository } from "../../server/db";
+import { BoardConflict } from "../../server/db/repository";
+import { boardError, HttpError, json, readBody } from "../../server/board-http";
 import { AssistantConfigurationError } from "../../server/assistant/provider";
 import { createAssistantProvider } from "../../server/assistant/providers";
 
@@ -16,21 +20,7 @@ All operations resolve against the same original snapshot. Do not reference card
 If any part of a requested batch cannot be resolved, ask for clarification and return no operations.
 Return a concise message. The app will validate operations and report their actual outcomes.`;
 
-function validBoard(value: unknown): value is Column[] {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 100) return false;
-  const ids = new Set<string>();
-  return value.every(column => {
-    if (!isRecord(column) || typeof column.id !== "string" || !column.id || ids.has(column.id) ||
-      typeof column.name !== "string" || !column.name.trim() || !Array.isArray(column.cards)) return false;
-    ids.add(column.id);
-    return column.cards.every(card => {
-      if (!isRecord(card) || typeof card.id !== "string" || !card.id || ids.has(card.id) ||
-        typeof card.title !== "string" || !card.title.trim() || typeof card.details !== "string") return false;
-      ids.add(card.id);
-      return true;
-    });
-  });
-}
+export const runtime = "nodejs";
 
 function validMessages(value: unknown): value is ChatMessage[] {
   return Array.isArray(value) && value.length > 0 && value.length <= 20 &&
@@ -40,30 +30,28 @@ function validMessages(value: unknown): value is ChatMessage[] {
 }
 
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) {
-    return Response.json({ error: "This request must come from the board application." }, { status: 403 });
-  }
-  let body: unknown;
+  let body: Record<string, unknown>;
+  let board: Column[];
+  let revision: number;
   try {
-    const raw = await request.text();
-    if (raw.length > 200_000) return Response.json({ error: "The board or conversation is too large." }, { status: 413 });
-    body = JSON.parse(raw);
-  } catch {
-    return Response.json({ error: "Send a valid board and conversation." }, { status: 400 });
-  }
-  if (!isRecord(body) || !validBoard(body.board) || !validMessages(body.messages)) {
-    return Response.json({ error: "Send a valid board and conversation." }, { status: 400 });
-  }
+    body = await readBody(request);
+    if (!validRevision(body.revision) || !validMessages(body.messages)) throw new HttpError(400, "Send a valid revision and conversation.");
+    const snapshot = getBoardRepository().read();
+    board = snapshot.columns;
+    revision = snapshot.revision;
+    if (body.revision !== revision) throw new BoardConflict();
+  } catch (error) { return boardError(error); }
   try {
     const provider = createAssistantProvider();
-    const plan = await provider.generatePlan({ instructions, board: body.board, messages: body.messages });
+    const plan = await provider.generatePlan({ instructions, board, messages: body.messages as ChatMessage[] });
+    // Inference never holds a transaction open. The later save checks this revision again.
+    if (getBoardRepository().read().revision !== revision) return boardError(new BoardConflict());
     try {
-      prepareActions(body.board, plan);
+      prepareActions(board, plan);
     } catch (error) {
-      return Response.json({ message: (error as Error).message, operations: [] });
+      return json({ message: (error as Error).message, operations: [], revision });
     }
-    return Response.json(plan);
+    return json({ ...plan, revision });
   } catch (error) {
     if (error instanceof AssistantConfigurationError) return Response.json({ error: error.message }, { status: 503 });
     return Response.json({ error: "The assistant could not complete this request. Try again. No changes were made." }, { status: 502 });

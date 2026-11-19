@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { type Locator, type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const originalOrder = ["card-c1", "card-c2", "card-c3"];
 const middleOrder = ["card-c2", "card-c1", "card-c3"];

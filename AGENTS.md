@@ -28,7 +28,7 @@ The requirements above describe the original MVP. These implemented follow-ups e
 - Cards can be reordered within a column using pointer or keyboard controls.
 - An in-app AI assistant can create cards, edit titles/details, and move cards between existing columns. It cannot delete cards or create lists.
 - The assistant stays visible on the right on desktop and below a separately scrolling board on narrow screens. Use icons and a visible AI label to identify it.
-- The board and chat remain in memory and reset on reload. The assistant adds a server-side Next.js route; deployments must run a Next.js server rather than a static export.
+- Issue #5 supersedes the MVP persistence restriction: the shared board is stored in SQLite and survives reloads and server/container restarts. Chat remains in memory and resets on reload. Deployments run a Next.js Node.js server rather than a static export.
 - New lists remain a separate backlog item. Keep the existing five columns until that issue is implemented.
 
 ## Assistant architecture and configuration
@@ -40,7 +40,16 @@ The requirements above describe the original MVP. These implemented follow-ups e
 - Store real keys only in the ignored `frontend/.env.local` or hosting secrets. OpenAI uses `OPENAI_API_KEY`; OpenRouter uses `OPENROUTER_API_KEY`. `.env.example` must contain empty key placeholders. Never expose keys through `NEXT_PUBLIC_`, logs, browser responses, or commits.
 - `AI_MODEL` takes precedence over defaults. Legacy `OPENAI_MODEL` applies only to OpenAI. Read only the selected provider's key and never silently fall back to another model or provider.
 - Treat model output as untrusted: validate its schema and every target before applying the complete batch. Ambiguous/invalid requests must leave the board unchanged. Reject responses if the board snapshot changed while waiting.
-- Retain card IDs and content during edits/moves. The server proposes actions; the open browser board owns its state. Keep provider errors free of credentials and upstream private details.
+- Retain card IDs and content during edits/moves. The database is authoritative. The assistant reads a saved snapshot and proposes actions with its revision; the server validates and commits the entire batch only against that revision. Keep provider errors free of credentials and upstream private details.
+
+## Database and deployment
+
+- Use SQLite with `better-sqlite3`, prepared SQL, numbered migrations, and a singleton board revision. Keep database access server-only under `frontend/app/server/db/`.
+- `DATABASE_PATH` defaults to `./data/kanban.sqlite` locally and `/data/kanban.sqlite` in Docker. Keep the database directory on local persistent storage; mount the entire directory for WAL/SHM files.
+- `npm run dev` and `npm start` migrate/seed before serving traffic. Seed dummy data only on first initialization; never reseed an emptied board. Builds must not open the deployment database.
+- Board mutations and assistant batches share the revision-checked transactional API. HTTP 409 means reload and review; never silently replay or overwrite stale changes. Keep drag previews local and save once on drop.
+- Use the backup command for live backups; restore into an empty volume while the app is stopped. Database files, sidecars, backups, and environment secrets must remain untracked.
+- Test with isolated temporary databases and controlled AI responses. No database reset endpoint or production test data. Chat persistence, accounts, live collaboration, and new lists remain outside issue #5.
 
 ## Verification commands
 
@@ -52,6 +61,7 @@ npm run typecheck
 npm run test:coverage
 npm run test:e2e
 npm run build
+npm run test:e2e:persistence
 ```
 
 - Use the same contract tests for every provider, including model/key selection, configuration failures, malformed output, refusals, and upstream errors. Unit and browser suites must use controlled responses rather than making paid inference calls.

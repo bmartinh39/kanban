@@ -67,7 +67,7 @@ export function boardReducer(board: Column[], action: Action): Column[] {
       const card = source.cards.find(card => card.id === action.cardId)!;
       return board.map(column => column.id === source.id
         ? { ...column, cards: column.cards.filter(item => item.id !== card.id) }
-        : column.id === action.columnId ? { ...column, cards: [...column.cards, card] } : column);
+        : column.id === action.columnId ? { ...column, cards: [...column.cards.slice(0, action.index ?? column.cards.length), card, ...column.cards.slice(action.index ?? column.cards.length)] } : column);
     }
   }
 }

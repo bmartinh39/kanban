@@ -2,6 +2,7 @@ import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Home from "../app/page";
+import { controlledBoard } from "./controlled-board";
 import { initialBoard } from "../app/board-state";
 
 const command = { type: "create", list: "Ideas", sourceList: null, card: null, title: "Launch", details: null };
@@ -10,7 +11,7 @@ afterEach(() => vi.unstubAllGlobals());
 async function openChat() {
   const user = userEvent.setup();
   render(<Home />);
-  expect(screen.getByRole("region", { name: "Board assistant" })).toBeInTheDocument();
+  await screen.findByRole("region", { name: "Board assistant" });
   return user;
 }
 
@@ -30,7 +31,7 @@ describe("assistant chat", () => {
       .mockResolvedValueOnce(Response.json({ message: "Created", operations: [command] }))
       .mockResolvedValueOnce(Response.json({ message: "Updated", operations: [{ ...command, type: "edit", card: "Launch", title: "Ship", details: "Ready" }] }))
       .mockResolvedValueOnce(Response.json({ message: "Moved", operations: [{ ...command, type: "move", card: "Ship", list: "Done", title: null }] }));
-    vi.stubGlobal("fetch", fetcher);
+    controlledBoard(fetcher);
     const user = await openChat();
     for (const request of ["Create Launch in Ideas", "Rename Launch to Ship with details Ready", "Move Ship to Done"]) {
       await user.type(screen.getByLabelText("What would you like to change?"), request);
@@ -43,12 +44,13 @@ describe("assistant chat", () => {
     expect(screen.getByText("13 cards")).toBeInTheDocument();
     expect(screen.getByRole("log")).toHaveTextContent('Moved "Ship" to Done.');
     const body = JSON.parse(fetcher.mock.calls[2][1].body);
-    expect(body.board[0].cards.at(-1)).toMatchObject({ title: "Ship", details: "Ready" });
+    expect(body.revision).toBe(2);
+    expect(body).not.toHaveProperty("board");
     expect(body.messages).toHaveLength(5);
     expect(JSON.stringify(body)).not.toContain("OPENAI_API_KEY");
   });
   it("shows clarification without changing cards and retains conversation while typing", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ message: "Which card?", operations: [] })));
+    controlledBoard(vi.fn().mockResolvedValue(Response.json({ message: "Which card?", operations: [] })));
     const user = await openChat();
     await user.type(screen.getByLabelText("What would you like to change?"), "Move it");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -58,7 +60,7 @@ describe("assistant chat", () => {
     expect(screen.getByText("Which card?")).toBeInTheDocument();
   });
   it("handles service errors and restores the draft for retry", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ error: "Set OPENAI_API_KEY on the server." }, { status: 503 })));
+    controlledBoard(vi.fn().mockResolvedValue(Response.json({ error: "Set OPENAI_API_KEY on the server." }, { status: 503 })));
     const user = await openChat();
     await user.type(screen.getByLabelText("What would you like to change?"), "Create task");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -68,7 +70,7 @@ describe("assistant chat", () => {
   });
   it("rejects stale responses after the board changes while waiting", async () => {
     let resolve!: (response: Response) => void;
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(done => { resolve = done; })));
+    controlledBoard(vi.fn(() => new Promise<Response>(done => { resolve = done; })));
     const user = await openChat();
     await user.type(screen.getByLabelText("What would you like to change?"), "Create Launch");
     await user.click(screen.getByRole("button", { name: "Send" }));
