@@ -20,7 +20,7 @@ Copy `frontend/.env.example` to `frontend/.env.local` to configure AI. Set `AI_P
 
 AI needs outbound HTTPS from the Node.js server. If it cannot reach the provider, restart the server in an environment with internet access; loading the board alone does not verify AI connectivity.
 
-The assistant can create, edit, and move cards. Providers implement `AssistantProvider.generatePlan`; current OpenAI/OpenRouter protocols live in `app/server/assistant/`. Proposals use the saved board revision and commit atomically. Recent chat and board content go to the selected provider with `store: false`; upstream retention depends on the provider.
+The assistant can create, edit, and move cards, and create, rename, or delete lists. List deletion always asks for confirmation, including empty lists; Cancel leaves the whole request unapplied. To add cards to a newly created list, send a follow-up request. Providers implement `AssistantProvider.generatePlan`; current OpenAI/OpenRouter protocols live in `app/server/assistant/`. Proposals use the saved board revision and commit atomically. Recent chat and board content go to the selected provider with `store: false`; upstream retention depends on the provider.
 
 Checks, from `frontend`:
 

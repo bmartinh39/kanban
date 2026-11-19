@@ -15,6 +15,50 @@ async function send(page: Page, text: string) {
   await page.getByRole("button", { name: "Send", exact: true }).click();
 }
 
+test("Enter sends once, Shift+Enter adds a newline, and composition does not send", async ({ page, boardState }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const requests: string[] = [];
+  await page.route("**/api/assistant", async route => {
+    const body = route.request().postDataJSON();
+    requests.push(body.messages.at(-1).content);
+    await pending;
+    await route.fulfill({ json: { message: "Done", revision: body.revision, operations: [operation({ list: "Planned", title: "Keyboard request" })] } });
+  });
+  await openChat(page);
+  const input = page.getByLabel("What would you like to change?");
+  await input.fill("   ");
+  await input.press("Enter");
+  await expect(input).toHaveValue("   ");
+  await input.fill("Create Keyboard request");
+  await input.press("Shift+Enter");
+  await input.pressSequentially("in Planned");
+  await expect(input).toHaveValue("Create Keyboard request\nin Planned");
+  await input.dispatchEvent("keydown", { key: "Enter", isComposing: true });
+  await input.dispatchEvent("keydown", { key: "Enter", keyCode: 229 });
+  await input.dispatchEvent("keydown", { key: "Enter", repeat: true });
+  expect(requests).toEqual([]);
+  await expect(page.getByRole("log")).not.toContainText("You");
+  await input.press("Enter");
+  await expect(page.getByText("Thinking about your board...")).toBeVisible();
+  await expect(input).toBeEmpty();
+  await expect(input).toBeFocused();
+  await input.fill("Next draft");
+  await input.press("Enter");
+  await expect(input).toHaveValue("Next draft");
+  expect(requests).toEqual(["Create Keyboard request\nin Planned"]);
+  release();
+  await expect(page.getByRole("log")).toContainText('Created "Keyboard request" in Planned.');
+  await expect(page.getByRole("heading", { name: "Keyboard request", exact: true })).toHaveCount(1);
+  expect(boardState.revision).toBe(1);
+  await expect(input).toHaveValue("Next draft");
+  await expect(page.locator("nextjs-portal")).not.toContainText("Runtime Error");
+  expect(errors).toEqual([]);
+});
+
 test("assistant creates, edits and moves cards using the current board, then reload preserves it", async ({ page, boardState }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -114,7 +158,7 @@ test("assistant explains a server connection failure and can retry without chang
   await expect(page.getByLabel("What would you like to change?")).toHaveValue("Create Connection recovered in Planned");
   await expect(page.getByRole("article")).toHaveCount(12);
   expect(boardState.revision).toBe(0);
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByLabel("What would you like to change?").press("Enter");
   await expect(panel.getByRole("log")).toContainText('Created "Connection recovered" in Planned.');
   await expect(panel.getByRole("alert")).toHaveCount(0);
   await expect(page.getByRole("article")).toHaveCount(13);

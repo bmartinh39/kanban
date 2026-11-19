@@ -21,6 +21,14 @@ afterEach(() => vi.unstubAllGlobals());
 describe.each(configs)("$name provider contract", config => {
   const env = { AI_PROVIDER: config.name, [config.keyVariable]: "selected-secret", OPENAI_MODEL: "" };
 
+  it.each(["create-list", "rename-list", "delete-list"])("supports %s through the shared structured-output contract", async type => {
+    const listPlan = { message: "Proposed", operations: [{ type, list: type === "create-list" ? null : "Ideas", title: type === "delete-list" ? null : "Backlog", card: null, sourceList: null, details: null }] };
+    const fetcher = vi.fn().mockResolvedValue(response(listPlan));
+    vi.stubGlobal("fetch", fetcher);
+    expect(await createAssistantProvider(env).generatePlan(request)).toEqual(listPlan);
+    expect(JSON.parse(fetcher.mock.calls[0][1].body).text.format.schema.properties.operations.items.properties.type.enum).toContain(type);
+  });
+
   it("returns the same domain plan with only the selected provider's credentials", async () => {
     const fetcher = vi.fn().mockResolvedValue(response());
     vi.stubGlobal("fetch", fetcher);

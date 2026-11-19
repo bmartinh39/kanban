@@ -1,8 +1,9 @@
-import type { Action, Column } from "./board-state";
+import type { Column } from "./board-state";
+import { applyCommands, parseCommands, type BoardCommand } from "./board-commands";
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 export type AssistantOperation = {
-  type: "create" | "edit" | "move";
+  type: "create" | "edit" | "move" | "create-list" | "rename-list" | "delete-list";
   list: string | null;
   sourceList: string | null;
   card: string | null;
@@ -22,7 +23,7 @@ export const planSchema = {
       type: "object", additionalProperties: false,
       required: ["type", "list", "sourceList", "card", "title", "details"],
       properties: {
-        type: { type: "string", enum: ["create", "edit", "move"] },
+        type: { type: "string", enum: ["create", "edit", "move", "create-list", "rename-list", "delete-list"] },
         list: nullableString, sourceList: nullableString, card: nullableString,
         title: nullableString, details: nullableString,
       },
@@ -40,7 +41,7 @@ export function parsePlan(value: unknown): AssistantPlan {
     throw new Error("The assistant returned an invalid response. No changes were made.");
   }
   const operations = value.operations.map(operation => {
-    if (!isRecord(operation) || !["create", "edit", "move"].includes(String(operation.type)) ||
+    if (!isRecord(operation) || typeof operation.type !== "string" || !["create", "edit", "move", "create-list", "rename-list", "delete-list"].includes(operation.type) ||
       !["list", "sourceList", "card", "title", "details"].every(key =>
         operation[key] === null || typeof operation[key] === "string")) {
       throw new Error("The assistant returned an invalid action. No changes were made.");
@@ -53,8 +54,8 @@ export function parsePlan(value: unknown): AssistantPlan {
 const normalized = (value: string) => value.trim().toLowerCase();
 
 // Resolve every target against the snapshot before dispatching any actions.
-export function prepareActions(board: Column[], plan: AssistantPlan): { actions: Action[]; message: string } {
-  const actions: Action[] = [];
+export function prepareActions(board: Column[], plan: AssistantPlan): { actions: BoardCommand[]; message: string; deletedLists: Column[] } {
+  const actions: BoardCommand[] = [];
   const outcomes: string[] = [];
   function findList(name: string | null) {
     const matches = name === null ? [] : board.filter(column => normalized(column.name) === normalized(name));
@@ -64,6 +65,26 @@ export function prepareActions(board: Column[], plan: AssistantPlan): { actions:
     return matches[0];
   }
   for (const operation of plan.operations) {
+    if (["create-list", "rename-list", "delete-list"].includes(operation.type)) {
+      if (operation.card !== null || operation.sourceList !== null || operation.details !== null ||
+        (operation.type === "create-list" && operation.list !== null) ||
+        (operation.type === "delete-list" && operation.title !== null)) throw new Error("The assistant returned an invalid list action. No changes were made.");
+      if (operation.type !== "delete-list" && !operation.title?.trim()) throw new Error("Lists need a nonblank name. No changes were made.");
+      if (operation.type === "create-list") {
+        actions.push({ type: "create-list", listId: crypto.randomUUID(), name: operation.title!.trim() });
+        outcomes.push(`Created list "${operation.title!.trim()}".`);
+      } else {
+        const column = findList(operation.list);
+        if (operation.type === "rename-list") {
+          actions.push({ type: "rename", columnId: column.id, name: operation.title!.trim() });
+          outcomes.push(`Renamed list "${column.name}" to "${operation.title!.trim()}".`);
+        } else {
+          actions.push({ type: "delete-list", columnId: column.id });
+          outcomes.push(`Deleted list "${column.name}" and its cards.`);
+        }
+      }
+      continue;
+    }
     if (operation.type === "create") {
       const column = findList(operation.list);
       if (!operation.title?.trim()) throw new Error("A new card needs a nonblank title. No changes were made.");
@@ -91,5 +112,19 @@ export function prepareActions(board: Column[], plan: AssistantPlan): { actions:
       outcomes.push(`Updated "${operation.title?.trim() ?? card.title}".`);
     }
   }
-  return { actions, message: outcomes.length ? outcomes.join("\n") : plan.message };
+  const deletedLists: Column[] = [];
+  let preview = board;
+  try {
+    parseCommands(actions);
+    for (const action of actions) {
+      if (action.type === "delete-list") {
+        const column = preview.find(column => column.id === action.columnId);
+        if (column) deletedLists.push(column);
+      }
+      preview = applyCommands(preview, [action]);
+    }
+  } catch {
+    throw new Error("These actions conflict with one another. Send separate requests. No changes were made.");
+  }
+  return { actions, message: outcomes.length ? outcomes.join("\n") : plan.message, deletedLists };
 }

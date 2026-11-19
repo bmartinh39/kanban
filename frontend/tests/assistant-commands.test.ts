@@ -7,6 +7,56 @@ const operation = (fields: Partial<AssistantOperation>): AssistantOperation => (
 });
 
 describe("assistant commands", () => {
+  it("creates and renames lists while preserving existing IDs and cards", () => {
+    const { actions, deletedLists } = prepareActions(initialBoard, parsePlan({ message: "Done", operations: [
+      operation({ type: "create-list", title: "  Review  " }),
+      operation({ type: "rename-list", list: " ideas ", title: "  Backlog  " }),
+    ] }));
+    const result = actions.reduce(boardReducer, initialBoard);
+    expect(result[0]).toEqual({ ...initialBoard[0], name: "Backlog" });
+    expect(result.at(-1)).toEqual({ id: expect.any(String), name: "Review", cards: [] });
+    expect(deletedLists).toEqual([]);
+  });
+  it("reports the actual deleted lists and card counts after earlier moves in a mixed batch", () => {
+    const { actions, deletedLists } = prepareActions(initialBoard, { message: "Done", operations: [
+      operation({ type: "move", card: initialBoard[0].cards[0].title, list: "Done" }),
+      operation({ type: "delete-list", list: "Done" }),
+      operation({ type: "delete-list", list: "Planned" }),
+    ] });
+    expect(deletedLists.map(column => [column.name, column.cards.length])).toEqual([["Done", 3], ["Planned", 2]]);
+    const result = actions.reduce(boardReducer, initialBoard);
+    expect(result).toHaveLength(3);
+    expect(result.flatMap(column => column.cards)).toHaveLength(7);
+    expect(initialBoard).toHaveLength(5);
+  });
+  it("can create on an empty board and propose deleting the final empty list", () => {
+    const created = prepareActions([], { message: "Done", operations: [operation({ type: "create-list", title: "First" })] });
+    const board = created.actions.reduce(boardReducer, []);
+    const deletion = prepareActions(board, { message: "Done", operations: [operation({ type: "delete-list", list: "First" })] });
+    expect(deletion.deletedLists).toEqual(board);
+    expect(deletion.actions.reduce(boardReducer, board)).toEqual([]);
+  });
+  it.each([
+    [operation({ type: "create-list", title: " " })],
+    [operation({ type: "create-list", title: "x".repeat(20001) })],
+    [operation({ type: "rename-list", list: "Ideas", title: " " })],
+    [operation({ type: "delete-list", list: "Missing" })],
+    [operation({ type: "delete-list", list: "Ideas", card: "Anything" })],
+    [operation({ type: "delete-list", list: "Ideas", title: "Anything" })],
+    [operation({ type: "create-list", list: "Ideas", title: "New" })],
+    [operation({ type: "rename-list", list: "Ideas", title: "New", details: "Unsupported" })],
+    [operation({ type: "delete-list", list: "Ideas" }), operation({ type: "delete-list", list: "Ideas" })],
+    [operation({ type: "delete-list", list: "Ideas" }), operation({ list: "Ideas", title: "Too late" })],
+  ].map(operations => ({ operations })))("rejects invalid/conflicting list batches without changing the board: %j", ({ operations }) => {
+    const before = structuredClone(initialBoard);
+    expect(() => prepareActions(initialBoard, { message: "Done", operations })).toThrow("No changes were made.");
+    expect(initialBoard).toEqual(before);
+  });
+  it("rejects ambiguous list deletion", () => {
+    const board = structuredClone(initialBoard);
+    board[1].name = "Ideas";
+    expect(() => prepareActions(board, { message: "Done", operations: [operation({ type: "delete-list", list: "Ideas" })] })).toThrow("More than one list");
+  });
   it("applies a batch only to the exact snapshot it was planned against", () => {
     const actions = prepareActions(initialBoard, { message: "", operations: [operation({ list: "Ideas", title: "Task" })] }).actions;
     const action = { type: "assistant" as const, snapshot: initialBoard, actions };
@@ -62,10 +112,11 @@ describe("assistant commands", () => {
     expect(() => prepareActions(board, { message: "", operations: [operation({ list: "Ideas", title: "Task" })] })).toThrow("More than one list");
   });
   it("returns clarification without changes", () => {
-    expect(prepareActions(initialBoard, { message: "Which card?", operations: [] })).toEqual({ actions: [], message: "Which card?" });
+    expect(prepareActions(initialBoard, { message: "Which card?", operations: [] })).toEqual({ actions: [], message: "Which card?", deletedLists: [] });
   });
   it.each([null, {}, { message: "", operations: [] }, { message: "x", operations: [{}] },
     { message: "x", operations: [operation({ type: "delete" as "edit" })] },
+    { message: "x", operations: [{ ...operation({}), type: ["create-list"] }] },
     { message: "x", operations: [{ ...operation({}), title: 42 }] },
     { message: "x", operations: Array(21).fill(operation({})) },
   ])("rejects malformed or unsupported plans: %j", value => {

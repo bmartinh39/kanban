@@ -11,6 +11,7 @@ import { boardReducer, type Card, type Column } from "./board-state";
 import { type BoardCommand } from "./board-commands";
 import { useBoard } from "./use-board";
 import { AssistantChat } from "./assistant-chat";
+import { DeleteListDialog } from "./delete-list-dialog";
 import { prepareActions, type AssistantPlan } from "./assistant-commands";
 
 
@@ -109,37 +110,6 @@ function AddItemDialog({ columnName, onClose, onAdd }: { columnName?: string; on
       <textarea id="card-details" placeholder="A little context goes a long way..." value={details} onChange={event => setDetails(event.target.value)} rows={4} /></>}
       <div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={!title.trim()}>{isList ? "Create list" : "Add card"} <Plus size={16} /></button></div>
     </form>
-  </dialog>;
-}
-
-function DeleteListDialog({ column, onClose, onDelete }: { column: Column; onClose: () => void; onDelete: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const cancel = useRef<HTMLButtonElement>(null);
-  const titleId = useId();
-  const descriptionId = useId();
-  const [closing, setClosing] = useState<"cancel" | "delete" | null>(null);
-  useEffect(() => {
-    const element = dialog.current!;
-    element.showModal();
-    cancel.current!.focus();
-    return () => element.close();
-  }, []);
-  useEffect(() => {
-    if (!closing) return;
-    const element = dialog.current!;
-    let cancelled = false;
-    void Promise.allSettled(element.getAnimations().map(animation => animation.finished)).then(() => {
-      if (cancelled) return;
-      element.close();
-      if (closing === "delete") onDelete(); else onClose();
-    });
-    return () => { cancelled = true; };
-  }, [closing, onClose, onDelete]);
-  return <dialog ref={dialog} className={`delete-confirmation${closing ? " is-closing" : ""}`} aria-labelledby={titleId} aria-describedby={descriptionId} onCancel={event => { event.preventDefault(); if (!closing) setClosing("cancel"); }} onClick={event => { if (event.target === event.currentTarget && !closing) setClosing("cancel"); }}>
-    <div className="confirmation-accent" aria-hidden="true"><Trash2 size={23} /></div>
-    <div className="dialog-heading"><h2 id={titleId}>Delete this list?</h2><button type="button" className="icon-button" disabled={!!closing} aria-label="Close dialog" onClick={() => setClosing("cancel")}><X size={20} /></button></div>
-    <p id={descriptionId} className="dialog-subtitle">{column.cards.length ? <>Deleting <strong>{column.name}</strong> also deletes its {column.cards.length} {column.cards.length === 1 ? "card" : "cards"}.</> : <>Delete the empty list <strong>{column.name}</strong>?</>} This cannot be undone.</p>
-    <div className="dialog-actions"><button ref={cancel} className="secondary-button" disabled={!!closing} onClick={() => setClosing("cancel")}>Cancel</button><button className="primary-button" disabled={!!closing} onClick={() => setClosing("delete")}>Delete list <Trash2 size={15} /></button></div>
   </dialog>;
 }
 
@@ -250,6 +220,6 @@ export default function Home() {
     </main>
     {addingColumn && <AddItemDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={(title, details) => { dispatch({ type: "add", columnId: addingColumn.id, card: { id: crypto.randomUUID(), title, details } }); closeDialog(); }} />}
     {addingList && <AddItemDialog onClose={closeDialog} onAdd={name => { const listId = crypto.randomUUID(); createdList.current = listId; dispatch({ type: "create-list", listId, name }); closeDialog(); }} />}
-    {deletingList && <DeleteListDialog column={deletingList} onClose={cancelDelete} onDelete={() => deleteList(deletingList)} />}
+    {deletingList && <DeleteListDialog columns={[deletingList]} onClose={cancelDelete} onDelete={() => deleteList(deletingList)} />}
   </div>;
 }

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Bot, Send, Sparkles } from "lucide-react";
-import { parsePlan, type AssistantPlan, type ChatMessage } from "./assistant-commands";
+import { parsePlan, prepareActions, type AssistantPlan, type ChatMessage } from "./assistant-commands";
+import { DeleteListDialog } from "./delete-list-dialog";
 import type { Column } from "./board-state";
 import { validRevision } from "./board-commands";
 
@@ -11,6 +12,8 @@ export function AssistantChat({ board, revision, disabled, onRefresh, onApply }:
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirmation, setConfirmation] = useState<{ columns: Column[]; batch: boolean; resolve: (confirmed: boolean) => void } | null>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);
   const pending = useRef<AbortController | null>(null);
   useEffect(() => () => pending.current?.abort(), []);
@@ -38,7 +41,17 @@ export function AssistantChat({ board, revision, disabled, onRefresh, onApply }:
       if (response.status === 409) onRefresh();
       if (!response.ok) throw new Error(result.error || "The assistant is unavailable. Try again.");
       if (!validRevision(result.revision) || result.revision !== revision) throw new Error("The board changed while I was thinking. Send your request again. No changes were made.");
-      const message = await onApply(snapshot, parsePlan(result), result.revision);
+      const plan = parsePlan(result);
+      const { deletedLists } = prepareActions(snapshot, plan);
+      if (deletedLists.length) {
+        const confirmed = await new Promise<boolean>(resolve => setConfirmation({ columns: deletedLists, batch: plan.operations.some(operation => operation.type !== "delete-list"), resolve }));
+        if (controller.signal.aborted) return;
+        if (!confirmed) {
+          setMessages([...conversation, { role: "assistant", content: "Cancelled. No changes were made." }]);
+          return;
+        }
+      }
+      const message = await onApply(snapshot, plan, result.revision);
       setMessages([...conversation, { role: "assistant", content: message }]);
     } catch (error) {
       if (!controller.signal.aborted) {
@@ -50,19 +63,29 @@ export function AssistantChat({ board, revision, disabled, onRefresh, onApply }:
       pending.current = null;
     }
   }
+  function confirmDeletion(confirmed: boolean) {
+    confirmation?.resolve(confirmed);
+    setConfirmation(null);
+    composer.current?.focus({ preventScroll: true });
+  }
   return <section id="board-assistant" className="assistant-panel" aria-label="Board assistant">
       <header className="assistant-heading"><span className="assistant-avatar" aria-hidden="true"><Bot size={25} /></span><div><span className="eyebrow"><Sparkles size={12} aria-hidden="true" /> AI ASSISTANT</span><h2>Board assistant</h2></div></header>
-      <p className="assistant-context">Working with your open board. Ask me to create, edit, or move a card.</p>
+      <p className="assistant-context">Create, edit, or move cards. Create, rename, or delete lists. List deletion always asks for confirmation.</p>
       <div ref={log} className="assistant-log" role="log" aria-label="Assistant conversation" aria-live="polite">
         {!messages.length && <div className="assistant-welcome"><Bot size={32} aria-hidden="true" /><p>A small step starts here.</p><span>Try: Create a card called “Review the launch” in Planned.</span></div>}
         {messages.map((message, index) => <div key={index} className={`chat-message chat-${message.role}`}><span>{message.role === "user" ? "You" : "Assistant"}</span><p>{message.content}</p></div>)}
-        {busy && <p role="status" className="assistant-working">Thinking about your board...</p>}
+        {busy && <p role="status" className="assistant-working">{confirmation ? "Waiting for deletion confirmation..." : "Thinking about your board..."}</p>}
       </div>
       {error && <p role="alert" className="assistant-error">{error}</p>}
       <form className="assistant-form" onSubmit={submit}>
         <label htmlFor="assistant-request">What would you like to change?</label>
-        <textarea id="assistant-request" value={draft} maxLength={4000} rows={3} placeholder="Tell me what needs to happen..." onChange={event => setDraft(event.target.value)} />
+        <textarea ref={composer} id="assistant-request" value={draft} maxLength={4000} rows={3} placeholder="Tell me what needs to happen..." onChange={event => setDraft(event.target.value)} onKeyDown={event => {
+          if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+          event.preventDefault();
+          if (!event.repeat) event.currentTarget.form?.requestSubmit();
+        }} />
         <div><span>Board changes are saved.</span><button className="primary-button" disabled={busy || disabled || !draft.trim()}>Send <Send size={14} /></button></div>
       </form>
+      {confirmation && <DeleteListDialog columns={confirmation.columns} batch={confirmation.batch} onClose={() => confirmDeletion(false)} onDelete={() => confirmDeletion(true)} />}
     </section>;
 }

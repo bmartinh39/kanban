@@ -1,9 +1,10 @@
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Home from "../app/page";
 import { controlledBoard } from "./controlled-board";
 import { initialBoard } from "../app/board-state";
+import { AssistantChat } from "../app/assistant-chat";
 
 const command = { type: "create", list: "Ideas", sourceList: null, card: null, title: "Launch", details: null };
 afterEach(() => vi.unstubAllGlobals());
@@ -16,6 +17,79 @@ async function openChat() {
 }
 
 describe("assistant chat", () => {
+  it.each([true, false])("requires confirmation before any action in a deletion batch; confirmed=%s", async confirmed => {
+    const fetcher = controlledBoard(vi.fn().mockResolvedValue(Response.json({ message: "Already deleted, no confirmation needed", operations: [
+      { ...command, type: "create-list", list: null, title: "New stage" },
+      { ...command, type: "delete-list", title: null },
+    ] })));
+    const user = await openChat();
+    const input = screen.getByLabelText("What would you like to change?");
+    await user.type(input, "Create New stage and delete Ideas{Enter}");
+    const dialog = await screen.findByRole("dialog", { name: "Delete this list?" });
+    expect(dialog).toHaveTextContent("Ideas also deletes its 3 cards");
+    expect(screen.getAllByRole("article", { hidden: true })).toHaveLength(12);
+    expect(fetcher.mock.calls.filter(([url]) => url === "/api/board/actions")).toHaveLength(0);
+    await user.click(within(dialog).getByRole("button", { name: confirmed ? "Delete list" : "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    if (confirmed) {
+      await waitFor(() => expect(screen.getByRole("log")).toHaveTextContent('Deleted list "Ideas"'));
+      expect(screen.getAllByRole("article")).toHaveLength(9);
+      expect(screen.getByRole("region", { name: "New stage column" })).toBeInTheDocument();
+      expect(fetcher.mock.calls.filter(([url]) => url === "/api/board/actions")).toHaveLength(1);
+    } else {
+      expect(await screen.findByText("Cancelled. No changes were made.")).toBeInTheDocument();
+      expect(screen.getAllByRole("article")).toHaveLength(12);
+      expect(screen.queryByRole("region", { name: "New stage column" })).not.toBeInTheDocument();
+      expect(fetcher.mock.calls.filter(([url]) => url === "/api/board/actions")).toHaveLength(0);
+    }
+    expect(input).toHaveFocus();
+  });
+  it("sends a multiline draft with Enter and keeps focus in the composer", async () => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ message: "Which card?", operations: [] }));
+    controlledBoard(fetcher);
+    const user = await openChat();
+    const input = screen.getByLabelText("What would you like to change?");
+    await user.type(input, "Move a card");
+    await user.keyboard("{Shift>}{Enter}{/Shift}to Done");
+    expect(input).toHaveValue("Move a card\nto Done");
+    expect(fetcher).not.toHaveBeenCalled();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText("Which card?")).toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetcher.mock.calls[0][1].body).messages).toEqual([{ role: "user", content: "Move a card\nto Done" }]);
+    expect(input).toHaveValue("");
+    expect(input).toHaveFocus();
+  });
+  it("does not send blank drafts, composition confirmation, held Enter, or another request while busy", async () => {
+    const fetcher = vi.fn(() => new Promise<Response>(() => {}));
+    controlledBoard(fetcher);
+    const user = await openChat();
+    const input = screen.getByLabelText("What would you like to change?");
+    await user.type(input, "   {Enter}");
+    expect(fetcher).not.toHaveBeenCalled();
+    await user.clear(input);
+    await user.type(input, "Move a card");
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(input, { key: "Enter", repeat: true });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(input).toHaveValue("Move a card");
+    await user.keyboard("{Enter}");
+    await screen.findByText("Thinking about your board...");
+    await user.type(input, "Another request{Enter}");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(input).toHaveValue("Another request");
+  });
+  it("does not submit with Enter while board changes are disabled", async () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    const user = userEvent.setup();
+    render(<AssistantChat board={initialBoard} revision={0} disabled onRefresh={vi.fn()} onApply={vi.fn()} />);
+    const input = screen.getByLabelText("What would you like to change?");
+    await user.type(input, "Create a card{Enter}");
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(input).toHaveValue("Create a card");
+  });
   it("stays visible, identifies itself as AI and supports keyboard input", async () => {
     const user = await openChat();
     expect(screen.getByText("AI ASSISTANT")).toBeInTheDocument();

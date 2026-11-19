@@ -19,6 +19,15 @@ beforeEach(() => { databaseBoard = initialBoard; databaseRevision = 0; vi.stubEn
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("assistant route", () => {
+  it.each(["create-list", "rename-list", "delete-list"])("returns a validated %s proposal without mutating storage", async type => {
+    const plan = { message: "Proposed", operations: [{ ...command, type, list: type === "create-list" ? null : "Ideas", title: type === "delete-list" ? null : "Backlog" }] };
+    const generatePlan = vi.fn().mockResolvedValue(plan);
+    vi.spyOn(providers, "createAssistantProvider").mockReturnValueOnce({ generatePlan });
+    expect(await (await POST(request())).json()).toEqual({ ...plan, revision: 0 });
+    expect(databaseBoard).toEqual(initialBoard);
+    expect(databaseRevision).toBe(0);
+    expect(generatePlan.mock.calls[0][0].instructions).toContain("ALWAYS asks the user to confirm");
+  });
   it("uses only the authoritative board even if a client submits a fabricated snapshot", async () => {
     const generatePlan = vi.fn().mockResolvedValue({ message: "Which card?", operations: [] });
     vi.spyOn(providers, "createAssistantProvider").mockReturnValueOnce({ generatePlan });
