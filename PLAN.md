@@ -309,3 +309,19 @@ Verification:
 - Browser plugin not available; used the existing Playwright workflow. Firefox required execution outside the restricted sandbox because its pages crash on launch inside it. Initial regression assertions were corrected to account for mobile scrolling and Next.js's separate alert element. Final UI and persistence runs completed separately to avoid sharing Playwright's artifact directory.
 - Desktop (1440 x 1000) and mobile (390 x 844) screenshots after a keyboard move were visually reviewed; the expected page title/content rendered, no framework overlay appeared, and console/runtime errors were absent. Screenshots are in the OS temporary directory, outside the repository.
 - `git diff --check` passes. Only the page, browser regressions, and this plan changed; no files or secrets are staged. Local server returned HTTP 200 at http://localhost:3000 and remains running.
+
+## Issue #10: Remove list-name scrollbar arrows (2026-11-19)
+
+- [x] Create branch `fix/issue-10-remove-list-arrows` in an isolated worktree from committed main; leave issue #9 edits untouched.
+- [x] Remove native scrollbar arrows beside list names while preserving long-name scrolling and existing header controls.
+- [x] Verify short/long names and rename controls in Chromium, Firefox, and mobile Chromium; run required checks and review the diff.
+
+Success criteria: list titles show no scrollbar arrows, long names remain readable by scrolling, and rename/delete/card controls still work. Use independent dependencies, build output, port 3310, and a worktree-local SQLite database. Browser plugin not available; use repository Playwright.
+
+Verification:
+
+- Lint, type checking, production build, and all 209 unit/component tests pass (98.47% line coverage).
+- All 147 controlled UI tests and 15 production persistence tests pass across Chromium, Firefox, and mobile Chromium. Persistence checks used port 3320 rather than the shared default; the temporary config override was restored afterward.
+- Focused browser checks renamed a list to a long title, scrolled its content, and renamed it back. All three browsers reported hidden scrollbars, no scrollbar gutter, no horizontal page overflow, and no console/runtime errors. Desktop and mobile screenshots were visually reviewed; page identity, meaningful content, and absence of framework error overlays were verified. Screenshots are saved in the OS temporary directory as `kanban-issue-10-{chromium,firefox,mobile}.png`.
+- The production app is running at http://localhost:3310 with its own `data/issue-10.sqlite`; HTTP readiness was verified. Local configuration remains ignored. No live AI inference was performed; controlled assistant coverage does not verify provider connectivity.
+- Source changes are limited to list-title CSS and this appended plan section. The original checkout and issue #9 assistant edits remain untouched. Independent worktrees prevent checkout/build interference; the shared PLAN.md append may still need a small merge resolution when both branches are integrated.
