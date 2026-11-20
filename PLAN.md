@@ -391,3 +391,18 @@ Verification:
 - Focused browser checks renamed a list to a long title, scrolled its content, and renamed it back. All three browsers reported hidden scrollbars, no scrollbar gutter, no horizontal page overflow, and no console/runtime errors. Desktop and mobile screenshots were visually reviewed; page identity, meaningful content, and absence of framework error overlays were verified. Screenshots are saved in the OS temporary directory as `kanban-issue-10-{chromium,firefox,mobile}.png`.
 - The production app is running at http://localhost:3310 with its own `data/issue-10.sqlite`; HTTP readiness was verified. Local configuration remains ignored. No live AI inference was performed; controlled assistant coverage does not verify provider connectivity.
 - Source changes are limited to list-title CSS and this appended plan section. The original checkout and issue #9 assistant edits remain untouched. Independent worktrees prevent checkout/build interference; the shared PLAN.md append may still need a small merge resolution when both branches are integrated.
+
+## Issue #12 – Dark workspace
+
+- [x] Apply a high-contrast dark palette and pair Manrope headings with DM Sans body text.
+- [x] Remove the intro, navigation taglines, and footer copy. Align the top of the project board and assistant on desktop.
+- [x] Size Add list to its contents, place the plus icon after the label, and simplify the shared delete-list confirmation.
+- [x] Verify the board, assistant and delete flows across desktop and mobile browsers.
+
+The desktop and mobile layouts retain the existing responsive column wrapping and assistant placement. Delete confirmation still shows the affected lists and card counts, with an outlined Cancel button, rose Delete list button and top-right close control.
+
+Verification used local Playwright because the Browser plugin runtime was unavailable. Desktop (1440 × 1000) and mobile Chromium (390 × 664) screenshots were compared with the design reference for the compact navigation, aligned panels, typography, Add list button and delete dialog. The app keeps the existing list and card controls and the docked mobile assistant shown in the current workflow. Add list and dialog cancellation worked with no browser runtime errors in both viewports.
+
+Lint, type checking and production build passed. The coverage run passed all 238 unit and component tests with 98.58% line coverage. All 18 production SQLite persistence scenarios passed across Chromium, Firefox and mobile Chromium. Assistant browser tests used controlled responses. Firefox required execution outside the filesystem sandbox to create its temporary profile.
+
+All 165 UI scenarios passed across desktop Chromium, Firefox and mobile Chromium, including focused reruns. The mobile save status now fits on one row at the tested viewport, and the failed-deletion regression verifies the board scroll position is preserved.

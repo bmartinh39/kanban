@@ -3,7 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDndContext, useDroppable, useSensor, useSensors, type DragCancelEvent, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { ArrowDownRight, ArrowUpRight, Check, Columns3, GripVertical, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Columns3, GripVertical, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
 import { columnCoordinates } from "./keyboard-coordinates";
 import { boardCollisionDetection } from "./drag-collision";
 import { createDragAnnouncements, getCardMove } from "./drag-announcements";
@@ -74,7 +74,7 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
       <SortableContext items={column.cards.map(card => card.id)} strategy={verticalListSortingStrategy}>
         {column.cards.map((card, cardIndex) => <TaskCard key={card.id} card={card} columnId={column.id} busy={busy} insertOffset={inserting && cardIndex >= insertionIndex ? gapHeight : 0} onDelete={() => onDelete(card.id)} />)}
       </SortableContext>
-      {!column.cards.length && !inserting && <div className="empty-column"><Columns3 size={23} /><p>A little room for what&apos;s next.</p><span>Drop a card here or add one below.</span></div>}
+      {!column.cards.length && !inserting && <div className="empty-column"><Columns3 size={23} /><p>Drop a card here or add one below.</p></div>}
     </div>
     <button className="add-card" aria-disabled={busy} onClick={event => { if (!busy) onAdd(event.currentTarget); }}><Plus size={16} /> Add a card</button>
   </section>;
@@ -102,8 +102,8 @@ function AddItemDialog({ columnName, onClose, onAdd }: { columnName?: string; on
     if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
     <form onSubmit={event => { event.preventDefault(); if (title.trim()) onAdd(title, details); }}>
-      <div className="dialog-heading"><div><span className="eyebrow">A NEW POSSIBILITY</span><h2 id={titleId}>{isList ? "Add a list" : "Add a card"}</h2></div><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose}><X size={20} /></button></div>
-      <p className="dialog-subtitle">{isList ? "Make a little more room for your work." : <>A place in <strong>{columnName}</strong> for your next idea.</>}</p>
+      <div className="dialog-heading"><h2 id={titleId}>{isList ? "Add a list" : "Add a card"}</h2><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose}><X size={20} /></button></div>
+      {!isList && <p className="dialog-subtitle">List <strong>{columnName}</strong></p>}
       <label htmlFor="item-title">{isList ? "List name" : "Title"} <span className="required-label">Required</span></label>
       <input id="item-title" ref={titleInput} placeholder={isList ? "What is this stage called?" : "What needs to happen?"} value={title} onChange={event => setTitle(event.target.value)} maxLength={20000} required />
       {!isList && <><label htmlFor="card-details">Details <span className="optional-label">Optional</span></label>
@@ -191,14 +191,18 @@ export default function Home() {
   const announcements = useMemo(() => createDragAnnouncements(savedBoard), [savedBoard]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: columnCoordinates, scrollBehavior: "auto" }));
   const activeCard = board.flatMap(column => column.cards).find(card => card.id === activeId);
-  const total = board.reduce((sum, column) => sum + column.cards.length, 0);
   const addingColumn = board.find(column => column.id === addingTo);
   if (!storage.snapshot) return <main className="board-loading"><h1>Forma</h1>{storage.loading ? <p role="status">Loading your board...</p> : <><p role="alert">{storage.error}</p><button className="primary-button" onClick={() => void storage.load()}>Retry loading board</button></>}</main>;
   return <div className="app-shell">
-    <header className="topbar"><div className="brand" aria-label="Forma"><span className="brand-mark"><span /><span /><span /><span /></span>forma<span className="brand-period">.</span></div><div className="workspace-label"><span /> Your creative workspace</div><span className="edition">A little clarity, every day.</span></header>
+    <header className="topbar">
+      <div className="brand" aria-label="Forma"><span className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></span>forma<span className="brand-period">.</span></div>
+    </header>
     <main>
-      <section className="intro"><div className="intro-copy"><div className="eyebrow"><span className="small-line" /> LESS NOISE. MORE FLOW.</div><h1>The work, in view<span>.</span></h1><p>Big ideas meet small steps. Make space for what&apos;s next.</p></div><div className="intro-note"><ArrowDownRight size={25} strokeWidth={1.4} /><span>A clear head starts<br />with a clear board.</span></div></section>
-      <div className="board-toolbar"><div className="board-label"><LayoutGrid size={17} /><h2>Project board</h2><span className="live-dot" /></div><div className="board-summary"><span className="save-status" aria-live="polite">{storage.saving ? "Saving..." : !storage.available ? "Disconnected" : storage.error ? "Check changes" : "Saved"}</span><span>{total} cards</span><span className="summary-separator" /><span>{board.length} stages</span></div><button className="secondary-button add-list" aria-disabled={storage.saving || !storage.available || activeId !== null} onClick={event => { if (storage.saving || !storage.available || activeId !== null) return; addTrigger.current = event.currentTarget; setAddingList(true); }}><Plus size={15} /> Add list</button></div>
+      <div className="board-toolbar">
+        <div className="board-label"><LayoutGrid size={19} aria-hidden="true" /><h1>Project board</h1></div>
+        <span className="save-status" aria-live="polite">{storage.saving ? "Saving..." : !storage.available ? "Disconnected" : storage.error ? "Save error" : "Saved"}</span>
+        <button className="primary-button add-list" aria-disabled={storage.saving || !storage.available || activeId !== null} onClick={event => { if (storage.saving || !storage.available || activeId !== null) return; addTrigger.current = event.currentTarget; setAddingList(true); }}>Add list <Plus size={16} aria-hidden="true" /></button>
+      </div>
       {storage.error && <div className="storage-error"><p role="alert">{storage.error}</p><button className="secondary-button" disabled={storage.loading || storage.saving} onClick={() => void storage.load()}>Reload board</button></div>}
       <DndContext
         id="project-board"
@@ -212,10 +216,9 @@ export default function Home() {
         onDragEnd={handleDragEnd}
         accessibility={{ announcements, screenReaderInstructions: { draggable: "Press Space to pick up a card. Use Up and Down to reorder it within its column. Use Left and Right to move it to another column. Press Space to drop, or Escape to cancel." } }}
       >
-        <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} busy={storage.saving || !storage.available} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={cardId => dispatch({ type: "delete", cardId })} onDeleteList={trigger => { addTrigger.current = trigger; setDeletingList(column); }} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div>{!board.length && <div className="empty-board"><Columns3 size={25} /><p>A fresh start. Add a list to make room for your work.</p></div>}</div>
+        <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} busy={storage.saving || !storage.available} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={cardId => dispatch({ type: "delete", cardId })} onDeleteList={trigger => { addTrigger.current = trigger; setDeletingList(column); }} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div>{!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}</div>
         <DragOverlay>{activeCard && <div className="task-card drag-preview"><div className="card-tools"><GripVertical size={16} /></div><CardContent card={activeCard} /></div>}</DragOverlay>
       </DndContext>
-      <footer className="board-footer"><span><GripVertical size={14} /> Grab a handle. Find a new perspective.</span><span>Built for a little forward motion <ArrowUpRight size={14} /></span></footer>
       <AssistantChat board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
     </main>
     {addingColumn && <AddItemDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={(title, details) => { dispatch({ type: "add", columnId: addingColumn.id, card: { id: crypto.randomUUID(), title, details } }); closeDialog(); }} />}

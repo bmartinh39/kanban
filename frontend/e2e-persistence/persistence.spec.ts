@@ -70,7 +70,6 @@ test("new lists and their cards persist, and competing list creation rejects sta
   const saved = await snapshot(page);
   await page.reload();
   await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(saved.columns.length);
-  await expect(page.getByText(`${saved.columns.length} stages`, { exact: true })).toBeVisible();
   expect(await snapshot(page)).toEqual(saved);
   expect(saved.columns.at(-1)).toEqual({ id: created.columns.at(-1)!.id, name: renamed, cards: [content] });
   await page.getByRole("button", { name: `Delete list ${renamed}`, exact: true }).click();

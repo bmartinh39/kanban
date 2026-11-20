@@ -4,8 +4,8 @@ import "@fontsource-variable/manrope";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Forma | The work, in view",
-  description: "A little clarity, every day. A simple project board for big ideas and small steps.",
+  title: "Forma | Project board",
+  description: "A Kanban project board with an AI assistant.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

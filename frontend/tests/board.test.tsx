@@ -17,7 +17,7 @@ describe("board interface", () => {
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete list" }));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Ideas column" })).not.toBeInTheDocument());
     expect(screen.getAllByRole("article")).toHaveLength(9);
-    expect(screen.getByText("4 stages")).toBeInTheDocument();
+    expect(screen.getAllByRole("region", { name: / column$/ })).toHaveLength(4);
   });
   it("confirms empty list deletion before changing the board", async () => {
     const user = userEvent.setup();
@@ -48,15 +48,15 @@ describe("board interface", () => {
     await user.type(name, "  Released  {Enter}");
     const list = await screen.findByRole("region", { name: "Released column" });
     expect(within(list).queryAllByRole("article")).toHaveLength(0);
-    expect(screen.getByText("6 stages")).toBeInTheDocument();
-    expect(screen.getByText("12 cards")).toBeInTheDocument();
+    expect(screen.getAllByRole("region", { name: / column$/ })).toHaveLength(6);
+    expect(screen.getAllByRole("article")).toHaveLength(12);
     await user.click(within(list).getByRole("button", { name: "Rename Released" }));
     await user.clear(screen.getByLabelText("Column name"));
     await user.type(screen.getByLabelText("Column name"), "Shipped{Enter}");
     await user.click(within(list).getByRole("button", { name: "Add a card" }));
     await user.type(screen.getByLabelText(/Title/), "New task{Enter}");
     expect(within(list).getByRole("heading", { name: "New task" })).toBeInTheDocument();
-    expect(screen.getByText("13 cards")).toBeInTheDocument();
+    expect(screen.getAllByRole("article")).toHaveLength(13);
   });
   it.each(["Cancel", "Close dialog", "backdrop", "Escape"])("cancels list creation with %s", async method => {
     const user = userEvent.setup();
@@ -68,14 +68,12 @@ describe("board interface", () => {
     else await user.click(screen.getByRole("button", { name: method }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getAllByRole("region", { name: / column$/ })).toHaveLength(5);
-    expect(screen.getByText("5 stages")).toBeInTheDocument();
   });
   it("renders exactly five populated columns", async () => {
     render(<Home />);
     await screen.findByRole("button", { name: "Rename Ideas" });
     expect(screen.getAllByRole("region", { name: / column$/ })).toHaveLength(5);
     expect(screen.getAllByRole("article")).toHaveLength(12);
-    expect(screen.getByText("12 cards")).toBeInTheDocument();
   });
   it("announces the picked-up card title and its current position", async () => {
     const user = userEvent.setup();
@@ -108,7 +106,7 @@ describe("board interface", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(within(column).getByRole("heading", { name: "Test task" })).toBeInTheDocument();
     expect(within(column).getByText("Useful context")).toBeInTheDocument();
-    expect(screen.getByText("13 cards")).toBeInTheDocument();
+    expect(screen.getAllByRole("article")).toHaveLength(13);
   });
   it("supports title-only cards", async () => {
     const user = userEvent.setup();
@@ -160,7 +158,7 @@ describe("board interface", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(within(done).queryAllByRole("article")).toHaveLength(0);
     expect(within(done).getByText("Drop a card here or add one below.")).toBeInTheDocument();
-    expect(screen.getByText("10 cards")).toBeInTheDocument();
+    expect(screen.getAllByRole("article")).toHaveLength(10);
   });
   it("keeps keyboard focus within the creation dialog in both directions", async () => {
     const user = userEvent.setup();
