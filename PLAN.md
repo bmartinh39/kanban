@@ -1,5 +1,24 @@
 # Kanban MVP implementation plan
 
+## Issue #15: Isolate ordinary browser-test startup
+
+- [x] Give the ordinary Playwright server a temporary database and dedicated port, disable server reuse, and clear live provider keys.
+- [x] Separate suite artifacts and clean up only the owned temporary database after server shutdown.
+- [x] Verify startup with disposable sentinel data, occupied-port rejection, and repeat runs.
+- [x] Run lint, type checking, coverage, all browser projects, build, persistence checks, and diff review.
+
+Success criteria: ordinary E2E startup cannot initialize or migrate the developer database, cannot reuse an unrelated server, and retains controlled API fixtures. Local/production startup and the separate persistence suite remain intact.
+
+Verification (2026-11-20):
+
+- Ordinary tests now use port 3210 (overridable with `PLAYWRIGHT_PORT`), refuse existing servers, override inherited `DATABASE_PATH` with a unique OS-temporary SQLite path, and clear both provider keys. A separate `.next/ui-tests` cache/lock lets the test server coexist with the existing development server. Local and production startup retain the default `.next` output and database behavior.
+- A cleanup reporter removes only the owned `kanban-ui-*` directory under the OS temporary directory after Playwright's server teardown. UI results and HTML reports have unique run subdirectories; persistence results use `test-results/persistence`. Existing controlled API fixtures are unchanged.
+- The new regression executes the real startup migration against the test environment while an inherited disposable sentinel database has an incompatible schema version. The sentinel remains byte-for-byte unchanged, without WAL/SHM sidecars; the temporary database is seeded correctly and cleanup refuses unrelated directories. A real API browser check confirms the running test server reads the temporary database and returns a missing-key configuration error rather than calling live AI.
+- Lint, type checking, production build and all 239 tests in 14 files pass. Configured line coverage is 98.58%. The initial regression imported the Playwright runtime and timed out under full coverage; testing the extracted server configuration directly removed that overhead without weakening the real migration assertion.
+- All 168 UI scenarios were exercised across Chromium, Firefox and mobile Chromium: the broad run passed 166, with two mobile trace-file teardown errors. After isolating artifacts per run, all nine focused creation/cancellation/startup cases passed across all three configurations, including both affected cases. No application behavior changed to resolve them. An occupied-port probe verified refusal and cleanup. A subsequent redundant probe raced server shutdown, started a fresh isolated server, and was stopped; its owned process tree and temporary database were cleaned up.
+- All 18 persistence scenarios were exercised against the production server with a temporary database: 17 passed initially; one Chromium keyboard-drag target assertion timed out. That exact case passed on a focused rerun without source changes. These results are broad coverage plus successful targeted reruns, not a claim of an uninterrupted green full-suite invocation.
+- Browser plugin not available; used the existing Playwright workflow with browser process access. No visual UI changes, paid/live inference, database reset, dependency upgrades, or migrations were introduced. The pre-existing development server was not stopped. README and AGENTS.md document the lasting test-isolation rules. `git diff --check` passes; secrets and generated artifacts are excluded. Delivery branch: `fix/issue-15-isolate-browser-database`. Integration into main remains a separate step.
+
 ## Follow-up: Assistant list operations
 
 - [x] Add provider-independent create/rename/delete-list proposals, exact target validation, and conflicting-batch rejection.

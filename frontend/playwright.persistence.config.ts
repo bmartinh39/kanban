@@ -8,6 +8,7 @@ export default defineConfig({
   testDir: "./e2e-persistence",
   fullyParallel: false,
   workers: 1,
+  outputDir: "test-results/persistence",
   reporter: "list",
   use: { baseURL: `http://localhost:${port}`, trace: "retain-on-failure" },
   projects: [

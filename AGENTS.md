@@ -51,6 +51,7 @@ The requirements above describe the original MVP. These implemented follow-ups e
 - Board mutations and assistant batches share the revision-checked transactional API. HTTP 409 means reload and review; never silently replay or overwrite stale changes. Keep drag previews local and save once on drop.
 - Use the backup command for live backups; restore into an empty volume while the app is stopped. Database files, sidecars, backups, and environment secrets must remain untracked.
 - Test with isolated temporary databases and controlled AI responses. No database reset endpoint or production test data. Chat persistence, accounts, and live collaboration remain outside issue #5; list creation is covered by issue #3.
+- Ordinary browser tests start a dedicated server on port 3210 (`PLAYWRIGHT_PORT` may override it), never reuse an existing server, and clear live AI keys. Keep their startup database temporary and remove it only after server shutdown. Keep UI and persistence test artifacts separate.
 
 ## Verification commands
 

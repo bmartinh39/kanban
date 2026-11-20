@@ -34,7 +34,7 @@ npm run build
 npm run test:e2e:persistence
 ```
 
-UI suites use isolated controlled APIs. The persistence suite starts a production server on port 3220 with a temporary real database; build first. Browser coverage includes Chromium, Firefox, and mobile Chromium. Automated tests never call paid inference.
+UI suites use controlled APIs and start their own server on port 3210 (`PLAYWRIGHT_PORT` overrides it), with a separate Next.js cache and a temporary database removed after shutdown. An occupied port fails instead of reusing another server; live AI keys are cleared. The persistence suite starts a production server on port 3220 with a temporary real database; build first. Suite artifacts are separate under `test-results/ui` and `test-results/persistence`. Browser coverage includes Chromium, Firefox, and mobile Chromium. Automated tests never call paid inference.
 
 Deploy on a VPS with Docker Compose, from the repository root:
 
