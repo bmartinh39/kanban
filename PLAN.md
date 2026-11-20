@@ -432,3 +432,17 @@ Verification (2026-11-20):
 - Completion review reran lint, type checking and the 36 focused component/hook tests. Removed fixed-path screenshot output from the browser spec while retaining layout and interaction assertions. The four card confirmation cases passed again in Chromium, Firefox and mobile Chromium (12 total).
 
 Limits: small isolated confirmation UI fix; no server/save/revision contract changes. Existing persistence browser callers now explicitly confirm deletion, but production build/real-SQLite persistence and broad coverage/full UI suites were not run under the task-based policy. No live inference, Safari/iOS verification, release, push or deployment. The one non-repeating existing drag-order failure remains reported above.
+
+## Issue #14: Keep the mobile AI Assistant drawer
+
+- [x] Restore the board, theme and desktop assistant from `main`, including the card deletion confirmation from issue #22.
+- [x] Open the assistant from the mobile header as a bottom drawer. Preserve conversation and draft text across opens, and keep list deletion confirmation above the drawer.
+- [x] Remove the mobile board's reserved dock space and verify that drag and list controls work throughout the viewport.
+
+Verification used Playwright with system Chromium because the Browser plugin runtime was unavailable and the bundled Chromium download was blocked. Browser tests used a dedicated server, a temporary startup database, and controlled assistant responses. Reviewed desktop (1440 × 1000) and mobile (390 × 664) screenshots, including the open drawer. The page rendered without browser console errors or a framework error overlay.
+
+Lint and type checking passed. The focused assistant, board and collision tests passed all 47 cases. The first browser run passed 63 cases across desktop and mobile Chromium. The new drawer test initially relied on the role locator to omit background elements, so it was corrected to verify that the launcher cannot take focus while the modal is open. The corrected test passed on both Chromium projects, for 65 distinct Chromium passes across runs. The desktop-only assistant case was skipped on mobile as intended.
+
+Firefox required a run outside the filesystem sandbox to open its temporary profile. Firefox emitted a browser warning about microtask ordering during the drawer test, whose interaction assertions passed. The browser regression checks page and console errors, consistent with the other assistant tests.
+
+The app's API and persistence code did not change. Production build, real SQLite browser checks, full coverage, and Safari/iOS device testing were outside this focused run.
