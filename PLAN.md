@@ -19,6 +19,25 @@ Verification (2026-11-20):
 - All 18 persistence scenarios were exercised against the production server with a temporary database: 17 passed initially; one Chromium keyboard-drag target assertion timed out. That exact case passed on a focused rerun without source changes. These results are broad coverage plus successful targeted reruns, not a claim of an uninterrupted green full-suite invocation.
 - Browser plugin not available; used the existing Playwright workflow with browser process access. No visual UI changes, paid/live inference, database reset, dependency upgrades, or migrations were introduced. The pre-existing development server was not stopped. README and AGENTS.md document the lasting test-isolation rules. `git diff --check` passes; secrets and generated artifacts are excluded. Delivery branch: `fix/issue-15-isolate-browser-database`. Integration into main remains a separate step.
 
+## Testing strategy revision (2026-11-20)
+
+Branch repair: the strategy is now isolated in `.worktrees/testing-strategy` on `docs/task-based-testing-strategy`, independently replayed from the original base. The issue #15 branch received a history-preserving revert; its existing dirty edits were retained, with non-strategy files verified byte-for-byte unchanged. Added `MULTI_AGENT.md` and mandatory per-task worktree guidance to prevent shared-checkout commits. This documentation-only follow-up needs diff/command review, not application suites.
+
+The current policy is in `TESTING.md` and `AGENTS.md`. It supersedes historical full-checklist instructions below; completed entries remain a record of what was actually run.
+
+- [x] Audit scripts, runner configuration, fixtures, suite boundaries and historical verification cost.
+- [x] Define task-to-test selection, risk-based browser configurations, and broad integration/release checks without removing tests or lowering coverage thresholds.
+- [x] Add watch and Chromium-only UI/persistence shortcuts; preserve existing full-suite commands and uncommitted isolation work.
+- [x] Verify unit baseline and new command selection; record execution limits.
+
+Success criteria: routine changes run the affected behavior without coverage/build/full-browser overhead unless needed. Shared contracts, native browser interactions, real SQLite transactions/revisions, and deployment lifecycle checks retain explicit coverage at the appropriate layer.
+
+Verification: `npm test` passed all 239 tests in 14 files in 40.80 seconds. Vitest attributed 53% of tracked time to jsdom environment creation; splitting pure server/state tests into Node is a potential later optimization, not part of this revision. The Chromium persistence alias discovers six tests across two files. The UI smoke was blocked first by the existing port 3210 server, then by its shared Next.js dev lock when tried on port 3235; the existing process was left untouched. No application code or runner environments changed. Full coverage, production build, persistence execution and the three-configuration UI suite are intentionally unnecessary for this documentation/script-selection change. No live inference or user-board writes were performed.
+
+Shortcut verification: `npm run test:watch -- --run tests/board-state.test.ts` passed 19 tests in 8.72 seconds; focused UI discovery selected exactly one Chromium composer scenario. `git diff --check` passed. Persistence validation here was discovery only, not a claim that its six scenarios executed.
+
+Integration verification: merged the strategy with main at `fe833e1` in a separate worktree. Kept both issue #15 and testing-strategy notes when resolving the PLAN.md insertion conflict. The combined diff changes documentation and npm test aliases only; issue #15 application/configuration/test files remain identical to its completed commit. No application suites were repeated for this integration-only change.
+
 ## Follow-up: Assistant list operations
 
 - [x] Add provider-independent create/rename/delete-list proposals, exact target validation, and conflicting-batch rejection.
