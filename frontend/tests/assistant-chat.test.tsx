@@ -92,7 +92,7 @@ describe("assistant chat", () => {
   });
   it("stays visible, identifies itself as AI and supports keyboard input", async () => {
     const user = await openChat();
-    expect(screen.getByText("AI ASSISTANT")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "AI Assistant" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
     await user.type(screen.getByLabelText("What would you like to change?"), "   ");
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
@@ -115,7 +115,7 @@ describe("assistant chat", () => {
     const done = screen.getByRole("region", { name: "Done column" });
     expect(within(done).getByRole("heading", { name: "Ship" })).toBeInTheDocument();
     expect(within(done).getByText("Ready")).toBeInTheDocument();
-    expect(screen.getByText("13 cards")).toBeInTheDocument();
+    expect(screen.getAllByRole("article")).toHaveLength(13);
     expect(screen.getByRole("log")).toHaveTextContent('Moved "Ship" to Done.');
     const body = JSON.parse(fetcher.mock.calls[2][1].body);
     expect(body.revision).toBe(2);

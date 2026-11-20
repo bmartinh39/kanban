@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Bot, Send, Sparkles } from "lucide-react";
+import { Bot, Send } from "lucide-react";
 import { parsePlan, prepareActions, type AssistantPlan, type ChatMessage } from "./assistant-commands";
 import { DeleteListDialog } from "./delete-list-dialog";
 import type { Column } from "./board-state";
@@ -69,10 +69,10 @@ export function AssistantChat({ board, revision, disabled, onRefresh, onApply }:
     composer.current?.focus({ preventScroll: true });
   }
   return <section id="board-assistant" className="assistant-panel" aria-label="Board assistant">
-      <header className="assistant-heading"><span className="assistant-avatar" aria-hidden="true"><Bot size={25} /></span><div><span className="eyebrow"><Sparkles size={12} aria-hidden="true" /> AI ASSISTANT</span><h2>Board assistant</h2></div></header>
+      <header className="assistant-heading"><span className="assistant-avatar" aria-hidden="true"><Bot size={25} /></span><div><h2>AI Assistant</h2></div></header>
       <p className="assistant-context">Create, edit, or move cards. Create, rename, or delete lists. List deletion always asks for confirmation.</p>
       <div ref={log} className="assistant-log" role="log" aria-label="Assistant conversation" aria-live="polite">
-        {!messages.length && <div className="assistant-welcome"><Bot size={32} aria-hidden="true" /><p>A small step starts here.</p><span>Try: Create a card called “Review the launch” in Planned.</span></div>}
+        {!messages.length && <div className="assistant-welcome">Try asking the assistant to create a card in an existing list.</div>}
         {messages.map((message, index) => <div key={index} className={`chat-message chat-${message.role}`}><span>{message.role === "user" ? "You" : "Assistant"}</span><p>{message.content}</p></div>)}
         {busy && <p role="status" className="assistant-working">{confirmation ? "Waiting for deletion confirmation..." : "Thinking about your board..."}</p>}
       </div>
@@ -84,7 +84,7 @@ export function AssistantChat({ board, revision, disabled, onRefresh, onApply }:
           event.preventDefault();
           if (!event.repeat) event.currentTarget.form?.requestSubmit();
         }} />
-        <div><span>Board changes are saved.</span><button className="primary-button" disabled={busy || disabled || !draft.trim()}>Send <Send size={14} /></button></div>
+        <div><button className="primary-button" disabled={busy || disabled || !draft.trim()}>Send <Send size={14} /></button></div>
       </form>
       {confirmation && <DeleteListDialog columns={confirmation.columns} batch={confirmation.batch} onClose={() => confirmDeletion(false)} onDelete={() => confirmDeletion(true)} />}
     </section>;

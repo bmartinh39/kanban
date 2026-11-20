@@ -18,10 +18,12 @@ for (const populated of [false, true]) {
     expect(boardState).toEqual(before);
     await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
     await expect(dialog).toHaveCSS("animation-name", "confirmation-in");
-    await expect(dialog).toHaveCSS("border-top-color", "rgb(236, 173, 10)");
-    await expect(dialog.getByRole("button", { name: "Delete list", exact: true })).toHaveCSS("background-color", "rgb(117, 57, 145)");
+    await expect(dialog.getByRole("button", { name: "Delete list", exact: true })).toHaveCSS("background-color", "rgb(250, 136, 154)");
+    const bounds = (await dialog.boundingBox())!;
+    const close = (await dialog.getByRole("button", { name: "Close dialog" }).boundingBox())!;
+    expect(close.y - bounds.y).toBeLessThan(24);
+    expect(bounds.x + bounds.width - (close.x + close.width)).toBeLessThan(24);
     if (info.project.name === "mobile") {
-      const bounds = (await dialog.boundingBox())!;
       expect(bounds.x).toBeCloseTo(0, 0);
       expect(bounds.y + bounds.height).toBeCloseTo(page.viewportSize()!.height, 0);
     }

@@ -8,7 +8,7 @@ async function openChat(page: Page) {
   await page.goto("/");
   await expect(page).toHaveTitle(/Forma/);
   await expect(page.getByRole("region", { name: "Board assistant", exact: true })).toBeVisible();
-  await expect(page.getByText("AI ASSISTANT", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "AI Assistant", exact: true })).toBeVisible();
 }
 async function send(page: Page, text: string) {
   await page.getByLabel("What would you like to change?").fill(text);
@@ -55,7 +55,7 @@ test("Enter sends once, Shift+Enter adds a newline, and composition does not sen
   await expect(page.getByRole("heading", { name: "Keyboard request", exact: true })).toHaveCount(1);
   expect(boardState.revision).toBe(1);
   await expect(input).toHaveValue("Next draft");
-  await expect(page.locator("nextjs-portal")).not.toContainText("Runtime Error");
+  await expect(page.locator("nextjs-portal").filter({ hasText: "Runtime Error" })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -96,7 +96,7 @@ test("assistant creates, edits and moves cards using the current board, then rel
   await card.scrollIntoViewIfNeeded();
   await expect(card).toContainText("Launch notes");
   await expect(card).toContainText("Ready for review");
-  await expect(page.getByText("13 cards", { exact: true })).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(13);
   await page.reload();
   await expect(page.getByRole("article")).toHaveCount(13);
   await expect(page.getByRole("heading", { name: "Launch notes" })).toHaveCount(1);
@@ -179,6 +179,7 @@ test("assistant stays visible, is keyboard accessible, and fits the viewport", a
   if (page.viewportSize()!.width > 700) {
     const board = await page.getByLabel("Project board columns").boundingBox();
     expect(board!.x + board!.width).toBeLessThanOrEqual(box!.x);
+    expect((await page.getByRole("main").boundingBox())!.y).toBeCloseTo(box!.y, 0);
   }
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await expect(panel).toBeVisible();

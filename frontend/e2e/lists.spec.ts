@@ -43,7 +43,7 @@ test("deletes a populated list and its cards only after confirmation", async ({ 
   await expect(page.getByRole("button", { name: "Add list", exact: true })).toBeFocused();
   await page.reload();
   await expect(list(page, "Ideas")).toHaveCount(0);
-  await expect(page.getByText("4 stages", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(4);
 });
 
 test("deletes the last empty list and can create a fresh list", async ({ page, boardState }) => {
@@ -54,8 +54,7 @@ test("deletes the last empty list and can create a fresh list", async ({ page, b
   await page.getByRole("dialog").getByRole("button", { name: "Delete list", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(0);
-  await expect(page.getByText("0 stages", { exact: true })).toBeVisible();
-  await expect(page.getByText(/A fresh start/)).toBeVisible();
+  await expect(page.getByText("Add a list to get started.")).toBeVisible();
   expect(boardState.columns).toEqual([]);
   await createList(page, "Fresh");
   await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(1);
@@ -120,8 +119,8 @@ test("creates empty trimmed lists, renames, adds cards, and reaches every list",
   await page.getByRole("button", { name: "Add card", exact: true }).click();
   await expect(list(page, "Shipped").getByRole("heading", { name: "New task" })).toBeVisible();
   await createList(page, "Later");
-  await expect(page.getByText("7 stages", { exact: true })).toBeVisible();
-  await expect(page.getByText("13 cards", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(7);
+  await expect(page.getByRole("article")).toHaveCount(13);
   const first = (await list(page, "Ideas").boundingBox())!;
   const sixth = (await list(page, "Shipped").boundingBox())!;
   expect(sixth.y).toBeGreaterThan(first.y);

@@ -3,7 +3,7 @@ import { expect, test } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "The work, in view." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Project board", level: 1 })).toBeVisible();
   // Wait for hydration before interacting with client controls.
   await page.getByRole("button", { name: "Rename Ideas", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Column name", exact: true })).toBeVisible();
@@ -63,7 +63,6 @@ async function keyboardMove(page: Page, title: string, target: string, cancel = 
 test("opens one board with five columns and dummy data", async ({ page }) => {
   await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(5);
   await expect(page.getByRole("article")).toHaveCount(12);
-  await expect(page.getByText("12 cards", { exact: true })).toBeVisible();
 });
 
 test("creates cards with and without details in their selected columns", async ({ page }) => {
@@ -72,7 +71,7 @@ test("creates cards with and without details in their selected columns", async (
   await expect(page.getByText("Context for this task", { exact: true })).toBeVisible();
   await addCard(page, "Ideas", "Title only");
   await expect(page.getByRole("heading", { name: "Title only" })).toBeVisible();
-  await expect(page.getByText("14 cards", { exact: true })).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(14);
   await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(5);
 });
 
