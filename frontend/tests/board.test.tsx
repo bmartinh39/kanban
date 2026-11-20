@@ -4,6 +4,23 @@ import { describe, expect, it } from "vitest";
 import Home from "../app/page";
 
 describe("board interface", () => {
+  it.each(["Cancel", "Close dialog", "backdrop", "Escape"])("cancels card deletion with %s without saving", async method => {
+    const user = userEvent.setup();
+    render(<Home />);
+    const trigger = await screen.findByRole("button", { name: "Delete Give the homepage a fresh start" });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Delete this card?" });
+    expect(dialog).toHaveTextContent("Give the homepage a fresh start");
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+    expect(screen.getAllByRole("article")).toHaveLength(12);
+    if (method === "backdrop") fireEvent.click(dialog);
+    else if (method === "Escape") fireEvent(dialog, new Event("cancel", { bubbles: true }));
+    else await user.click(within(dialog).getByRole("button", { name: method }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getAllByRole("article")).toHaveLength(12);
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
   it("confirms populated list deletion, cancels without changes, then deletes its cards too", async () => {
     const user = userEvent.setup();
     render(<Home />);
@@ -154,7 +171,11 @@ describe("board interface", () => {
     render(<Home />);
     await screen.findByRole("button", { name: "Rename Ideas" });
     const done = screen.getByRole("region", { name: "Done column" });
-    for (const article of within(done).getAllByRole("article")) await user.click(within(article).getByRole("button", { name: /^Delete / }));
+    for (const article of within(done).getAllByRole("article")) {
+      await user.click(within(article).getByRole("button", { name: /^Delete / }));
+      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete card" }));
+      await waitFor(() => expect(article).not.toBeInTheDocument());
+    }
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(within(done).queryAllByRole("article")).toHaveLength(0);
     expect(within(done).getByText("Drop a card here or add one below.")).toBeInTheDocument();

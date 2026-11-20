@@ -63,7 +63,6 @@ h1, h2 { font-family: var(--heading-font); }
 .card-tools { height: 19px; display: flex; align-items: center; justify-content: space-between; margin: 0 -5px 9px; color: var(--muted); }
 .drag-handle { cursor: grab; touch-action: none; color: var(--muted); }
 .drag-handle:active { cursor: grabbing; }
-.delete-button { opacity: 0; }
 .task-card:hover .delete-button, .task-card:focus-within .delete-button { opacity: 1; }
 .delete-button:hover { color: var(--danger); background: var(--danger-surface); }
 .task-card h3 { font-size: 13px; font-weight: 600; line-height: 1.55; margin: 0 0 8px; letter-spacing: -.1px; }
