@@ -2,6 +2,8 @@
 
 ## Testing strategy revision (2026-11-20)
 
+Branch repair: the strategy is now isolated in `.worktrees/testing-strategy` on `docs/task-based-testing-strategy`, independently replayed from the original base. The issue #15 branch received a history-preserving revert; its existing dirty edits were retained, with non-strategy files verified byte-for-byte unchanged. Added `MULTI_AGENT.md` and mandatory per-task worktree guidance to prevent shared-checkout commits. This documentation-only follow-up needs diff/command review, not application suites.
+
 The current policy is in `TESTING.md` and `AGENTS.md`. It supersedes historical full-checklist instructions below; completed entries remain a record of what was actually run.
 
 - [x] Audit scripts, runner configuration, fixtures, suite boundaries and historical verification cost.

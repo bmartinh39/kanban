@@ -52,6 +52,10 @@ The requirements above describe the original MVP. These implemented follow-ups e
 - Use the backup command for live backups; restore into an empty volume while the app is stopped. Database files, sidecars, backups, and environment secrets must remain untracked.
 - Test with isolated temporary databases and controlled AI responses. No database reset endpoint or production test data. Chat persistence, accounts, and live collaboration remain outside issue #5; list creation is covered by issue #3.
 
+## Concurrent agent work
+
+Follow `MULTI_AGENT.md` for worktree ownership and integration. Each concurrent task must use its own branch and worktree before editing. Never switch, stash, reset, stage, or commit in another agent's checkout. Do not spawn additional agents unless the user or applicable instructions explicitly request delegation.
+
 ## Verification strategy
 
 Follow `TESTING.md` for the task-to-test matrix and commands (run from `frontend`). This policy supersedes blanket full-suite requirements in historical `PLAN.md` entries and the original MVP strategy below.
