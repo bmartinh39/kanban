@@ -21,9 +21,8 @@ export { expect };
 export async function visibleBoardFrame(page: Page) {
   return page.getByLabel("Project board columns").evaluate(element => {
     const board = element.getBoundingClientRect();
-    const panelTop = window.innerWidth <= 700 ? document.querySelector(".assistant-panel")!.getBoundingClientRect().top : window.innerHeight;
     const x = Math.max(0, board.left);
     const y = Math.max(0, board.top);
-    return { x, y, width: Math.min(window.innerWidth, board.right) - x, height: Math.min(panelTop, board.bottom) - y };
+    return { x, y, width: Math.min(window.innerWidth, board.right) - x, height: Math.min(window.innerHeight, board.bottom) - y };
   });
 }

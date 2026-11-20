@@ -12,7 +12,7 @@ afterEach(() => vi.unstubAllGlobals());
 async function openChat() {
   const user = userEvent.setup();
   render(<Home />);
-  await screen.findByRole("region", { name: "Board assistant" });
+  await user.click(await screen.findByRole("button", { name: "Assistant" }));
   return user;
 }
 
@@ -30,7 +30,7 @@ describe("assistant chat", () => {
     expect(screen.getAllByRole("article", { hidden: true })).toHaveLength(12);
     expect(fetcher.mock.calls.filter(([url]) => url === "/api/board/actions")).toHaveLength(0);
     await user.click(within(dialog).getByRole("button", { name: confirmed ? "Delete list" : "Cancel" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Delete this list?" })).not.toBeInTheDocument());
     if (confirmed) {
       await waitFor(() => expect(screen.getByRole("log")).toHaveTextContent('Deleted list "Ideas"'));
       expect(screen.getAllByRole("article")).toHaveLength(9);
@@ -60,6 +60,21 @@ describe("assistant chat", () => {
     expect(input).toHaveValue("");
     expect(input).toHaveFocus();
   });
+  it("still asks for confirmation when a deletion proposal arrives after closing chat", async () => {
+    let resolve!: (response: Response) => void;
+    const fetcher = controlledBoard(vi.fn(() => new Promise<Response>(done => { resolve = done; })));
+    const user = await openChat();
+    await user.type(screen.getByLabelText("What would you like to change?"), "Delete Ideas{Enter}");
+    await user.click(screen.getByRole("button", { name: "Close assistant" }));
+    resolve(Response.json({ message: "Proposed", operations: [{ ...command, type: "delete-list", title: null }] }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete this list?" });
+    expect(screen.queryByRole("dialog", { name: "AI Assistant" })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Assistant" }));
+    expect(screen.getByRole("log")).toHaveTextContent("Cancelled. No changes were made.");
+    expect(fetcher.mock.calls.filter(([url]) => url === "/api/board/actions")).toHaveLength(0);
+  });
   it("does not send blank drafts, composition confirmation, held Enter, or another request while busy", async () => {
     const fetcher = vi.fn(() => new Promise<Response>(() => {}));
     controlledBoard(fetcher);
@@ -84,21 +99,23 @@ describe("assistant chat", () => {
     const fetcher = vi.fn();
     vi.stubGlobal("fetch", fetcher);
     const user = userEvent.setup();
-    render(<AssistantChat board={initialBoard} revision={0} disabled onRefresh={vi.fn()} onApply={vi.fn()} />);
+    render(<AssistantChat open onClose={vi.fn()} board={initialBoard} revision={0} disabled onRefresh={vi.fn()} onApply={vi.fn()} />);
     const input = screen.getByLabelText("What would you like to change?");
     await user.type(input, "Create a card{Enter}");
     expect(fetcher).not.toHaveBeenCalled();
     expect(input).toHaveValue("Create a card");
   });
-  it("stays visible, identifies itself as AI and supports keyboard input", async () => {
+  it("keeps a draft across closing and reopening with the keyboard", async () => {
     const user = await openChat();
     expect(screen.getByRole("heading", { name: "AI Assistant" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
     await user.type(screen.getByLabelText("What would you like to change?"), "   ");
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-    await user.keyboard("{Escape}");
-    expect(screen.getByRole("region", { name: "Board assistant" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Close assistant" })).not.toBeInTheDocument();
+    const input = screen.getByLabelText("What would you like to change?");
+    await user.type(input, "Keep this draft{Escape}");
+    expect(screen.queryByRole("dialog", { name: "AI Assistant" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Assistant" }));
+    expect(input).toHaveValue("   Keep this draft");
   });
   it("creates, edits, and moves cards with visible outcomes and current board/chat context", async () => {
     const fetcher = vi.fn()
@@ -149,7 +166,8 @@ describe("assistant chat", () => {
     await user.type(screen.getByLabelText("What would you like to change?"), "Create Launch");
     await user.click(screen.getByRole("button", { name: "Send" }));
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: `Delete ${initialBoard[0].cards[0].title}` }));
+    await user.click(screen.getByRole("button", { name: `Card actions for ${initialBoard[0].cards[0].title}` }));
+    await user.click(screen.getByRole("button", { name: "Delete card" }));
     resolve(Response.json({ message: "Done", operations: [command] }));
     expect(await screen.findByRole("alert")).toHaveTextContent("board changed");
     expect(screen.getAllByRole("article")).toHaveLength(11);

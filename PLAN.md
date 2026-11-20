@@ -406,3 +406,20 @@ Verification used local Playwright because the Browser plugin runtime was unavai
 Lint, type checking and production build passed. The coverage run passed all 238 unit and component tests with 98.58% line coverage. All 18 production SQLite persistence scenarios passed across Chromium, Firefox and mobile Chromium. Assistant browser tests used controlled responses. Firefox required execution outside the filesystem sandbox to create its temporary profile.
 
 All 165 UI scenarios passed across desktop Chromium, Firefox and mobile Chromium, including focused reruns. The mobile save status now fits on one row at the tested viewport, and the failed-deletion regression verifies the board scroll position is preserved.
+
+## Issue #14 – Board-first workspace
+
+- [x] Give the board the full width by default and open the AI Assistant beside it on desktop or as a modal drawer on narrow screens.
+- [x] Move list and card commands into contextual menus, keep destructive list confirmation, and put the list creation control after the final column.
+- [x] Keep keyboard drag help visible during a drag and retain the screen reader instructions and drop-target feedback.
+- [x] Apply a warm charcoal and chartreuse palette with self-hosted Bricolage Grotesque and Instrument Sans.
+
+The Assistant preserves its draft and conversation when closed and reopened. Reload resets both. The toolbar shows saving and failure feedback from the existing revision-checked API. List deletion still requires confirmation.
+
+Verification used the focused workflow in [TESTING.md](TESTING.md). Lint, type checking, and a dry-run clean dependency install passed. The six affected board, assistant, save, and drag unit/component files passed 67 tests. The 11 assistant component tests also passed with the added regression for a confirmation arriving after the panel closes.
+
+Playwright passed 12 distinct Chromium, 7 mobile Chromium, and 5 Firefox scenarios on isolated port 3214. The selection covered the assistant panel and drawer, list and card actions, keyboard help and focus, pointer placement with the desktop panel open, and a list confirmation spanning the drawer breakpoint. Firefox initially crashed before page load in the sandbox and passed after the focused rerun outside it.
+
+The Browser plugin was unavailable. Playwright screenshots at 1440 × 900 and 390 × 664 were compared with the visual reference for the title and toolbar, typography, charcoal and chartreuse palette, list and card controls, and panel/drawer placement. The rendered board retains the seeded wording and wraps columns at narrower widths. The mobile composer was tightened after reviewing the conversation area. The screenshot flow verified page identity, interactions, and the absence of runtime errors and framework error overlays. Screenshots are in the OS temporary directory as `kanban-issue14-{board,assistant}-{chromium,firefox,mobile}.png`.
+
+This change used controlled board and AI responses. Full coverage, production build, real SQLite browser tests, and live inference were outside the focused scope because the save and provider integrations were untouched.

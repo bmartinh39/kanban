@@ -1,25 +1,47 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Bot, Send } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { Bot, Send, X } from "lucide-react";
 import { parsePlan, prepareActions, type AssistantPlan, type ChatMessage } from "./assistant-commands";
 import { DeleteListDialog } from "./delete-list-dialog";
 import type { Column } from "./board-state";
 import { validRevision } from "./board-commands";
 
-export function AssistantChat({ board, revision, disabled, onRefresh, onApply }: { board: Column[]; revision: number; disabled: boolean; onRefresh: () => void; onApply: (snapshot: Column[], plan: AssistantPlan, revision: number) => Promise<string> }) {
+export function AssistantChat({ open, board, revision, disabled, onClose, onRefresh, onApply }: { open: boolean; board: Column[]; revision: number; disabled: boolean; onClose: () => void; onRefresh: () => void; onApply: (snapshot: Column[], plan: AssistantPlan, revision: number) => Promise<string> }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmation, setConfirmation] = useState<{ columns: Column[]; batch: boolean; resolve: (confirmed: boolean) => void } | null>(null);
+  const panel = useRef<HTMLDialogElement>(null);
+  const isModal = useRef(false);
   const composer = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);
   const pending = useRef<AbortController | null>(null);
   useEffect(() => () => pending.current?.abort(), []);
+  useLayoutEffect(() => {
+    const element = panel.current!;
+    const narrow = window.matchMedia("(max-width: 700px)");
+    function syncPanel() {
+      if (!open) {
+        if (element.open) element.close();
+        return;
+      }
+      // Keep the confirmation above the assistant in the browser's dialog stack.
+      if (element.open && (isModal.current === narrow.matches || confirmation)) return;
+      const focused = element.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
+      if (element.open) element.close();
+      if (narrow.matches) element.showModal(); else element.show();
+      isModal.current = narrow.matches;
+      focused?.focus({ preventScroll: true });
+    }
+    syncPanel();
+    narrow.addEventListener("change", syncPanel);
+    return () => narrow.removeEventListener("change", syncPanel);
+  }, [open, confirmation]);
   useEffect(() => {
-    if (log.current) log.current.scrollTop = log.current.scrollHeight;
-  }, [messages, busy, error]);
+    if (open && log.current) log.current.scrollTop = log.current.scrollHeight;
+  }, [open, messages, busy, error]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!draft.trim() || busy || disabled) return;
@@ -66,13 +88,21 @@ export function AssistantChat({ board, revision, disabled, onRefresh, onApply }:
   function confirmDeletion(confirmed: boolean) {
     confirmation?.resolve(confirmed);
     setConfirmation(null);
-    composer.current?.focus({ preventScroll: true });
+    if (open) composer.current?.focus({ preventScroll: true });
   }
-  return <section id="board-assistant" className="assistant-panel" aria-label="Board assistant">
-      <header className="assistant-heading"><span className="assistant-avatar" aria-hidden="true"><Bot size={25} /></span><div><h2>AI Assistant</h2></div></header>
+  return <>
+    <dialog ref={panel} id="board-assistant" className="assistant-panel" aria-labelledby="assistant-heading" onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => {
+      if (event.target === event.currentTarget && isModal.current) onClose();
+    }} onKeyDown={event => {
+      if (event.key === "Escape" && !isModal.current) onClose();
+    }}>
+      <header className="assistant-heading">
+        <Bot size={20} aria-hidden="true" />
+        <h2 id="assistant-heading">AI Assistant</h2>
+        <button type="button" className="icon-button" aria-label="Close assistant" onClick={onClose}><X size={19} aria-hidden="true" /></button>
+      </header>
       <p className="assistant-context">Create, edit, or move cards. Create, rename, or delete lists. List deletion always asks for confirmation.</p>
       <div ref={log} className="assistant-log" role="log" aria-label="Assistant conversation" aria-live="polite">
-        {!messages.length && <div className="assistant-welcome">Try asking the assistant to create a card in an existing list.</div>}
         {messages.map((message, index) => <div key={index} className={`chat-message chat-${message.role}`}><span>{message.role === "user" ? "You" : "Assistant"}</span><p>{message.content}</p></div>)}
         {busy && <p role="status" className="assistant-working">{confirmation ? "Waiting for deletion confirmation..." : "Thinking about your board..."}</p>}
       </div>
@@ -86,6 +116,7 @@ export function AssistantChat({ board, revision, disabled, onRefresh, onApply }:
         }} />
         <div><button className="primary-button" disabled={busy || disabled || !draft.trim()}>Send <Send size={14} /></button></div>
       </form>
-      {confirmation && <DeleteListDialog columns={confirmation.columns} batch={confirmation.batch} onClose={() => confirmDeletion(false)} onDelete={() => confirmDeletion(true)} />}
-    </section>;
+    </dialog>
+    {confirmation && <DeleteListDialog columns={confirmation.columns} batch={confirmation.batch} onClose={() => confirmDeletion(false)} onDelete={() => confirmDeletion(true)} />}
+  </>;
 }

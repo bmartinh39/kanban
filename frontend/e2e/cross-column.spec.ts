@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test, visibleBoardFrame } from "./fixtures";
+import { chooseListAction } from "./board-controls";
 
 const orders = [["c1", "c4", "c5"], ["c4", "c1", "c5"], ["c4", "c5", "c1"]];
 const column = (page: Page) => page.getByRole("region", { name: "Planned column", exact: true });
@@ -23,7 +24,7 @@ async function pointerSlot(page: Page, index: number) {
   await target.evaluate(element => element.scrollIntoView({ block: "center", inline: "center" }));
   await target.evaluate((element, index) => {
     // A previous preview can shift the rendered card beyond its actual layout slot.
-    const bottom = window.innerWidth <= 700 ? document.querySelector(".assistant-panel")!.getBoundingClientRect().top : window.innerHeight;
+    const bottom = window.innerHeight;
     const rect = element.getBoundingClientRect();
     const transform = new DOMMatrix(getComputedStyle(element).transform);
     const targetY = rect.y - transform.m42 + (index === 2 ? rect.height + 11 : rect.height / 4);
@@ -47,7 +48,7 @@ async function pointerSlot(page: Page, index: number) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Rename Ideas", exact: true }).click();
+  await chooseListAction(page, "Ideas", "Rename list");
   await page.keyboard.press("Escape");
 });
 

@@ -1,10 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { BoardSnapshot } from "../app/board-commands";
+import { chooseListAction, closeAssistant, deleteCard, listActions, openAssistant } from "../e2e/board-controls";
 
 async function open(page: Page) {
   await page.goto("/");
   await expect(page).toHaveTitle(/Forma/);
-  await expect(page.getByRole("button", { name: "Rename Ideas", exact: true })).toBeVisible();
+  await expect(listActions(page, "Ideas")).toBeVisible();
 }
 async function add(page: Page, title: string) {
   await page.getByRole("region", { name: "Ideas column", exact: true }).getByRole("button", { name: "Add a card" }).click();
@@ -12,7 +13,7 @@ async function add(page: Page, title: string) {
   await page.getByLabel(/Details/).fill("Saved context");
   await page.getByRole("button", { name: "Add card", exact: true }).click();
   await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved");
 }
 async function snapshot(page: Page): Promise<BoardSnapshot> { return (await page.request.get("/api/board")).json(); }
 
@@ -40,7 +41,7 @@ test("new lists and their cards persist, and competing list creation rejects sta
   await expect(other.locator(".storage-error").getByRole("alert")).toContainText("another tab");
   expect(await snapshot(other)).toEqual(created);
   await other.close();
-  await list.getByRole("button", { name: `Rename ${name}`, exact: true }).click();
+  await chooseListAction(page, name, "Rename list");
   await page.getByLabel("Column name", { exact: true }).fill(renamed);
   await page.getByLabel("Column name", { exact: true }).press("Enter");
   const target = page.getByRole("region", { name: `${renamed} column`, exact: true });
@@ -72,10 +73,10 @@ test("new lists and their cards persist, and competing list creation rejects sta
   await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(saved.columns.length);
   expect(await snapshot(page)).toEqual(saved);
   expect(saved.columns.at(-1)).toEqual({ id: created.columns.at(-1)!.id, name: renamed, cards: [content] });
-  await page.getByRole("button", { name: `Delete list ${renamed}`, exact: true }).click();
+  await chooseListAction(page, renamed, "Delete list");
   await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
   expect(await snapshot(page)).toEqual(saved);
-  await page.getByRole("button", { name: `Delete list ${renamed}`, exact: true }).click();
+  await chooseListAction(page, renamed, "Delete list");
   await page.getByRole("dialog").getByRole("button", { name: "Delete list", exact: true }).click();
   await expect(page.getByRole("region", { name: `${renamed} column`, exact: true })).toHaveCount(0);
   await expect(page.locator(".save-status")).toHaveText("Saved");
@@ -110,7 +111,7 @@ test("real database preserves card content, names, moves and order on reload", a
   await expect(page.getByRole("status").and(page.locator("[aria-live=assertive]"))).toContainText(`Moving ${title} to Planned, position 2 of 3`);
   await page.keyboard.press("Space");
   await expect(page.getByRole("region", { name: "Planned column" }).getByRole("heading", { name: title, exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Rename Planned", exact: true }).click();
+  await chooseListAction(page, "Planned", "Rename list");
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Next up");
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");
   await expect(page.getByRole("region", { name: "Next up column" })).toBeVisible();
@@ -119,14 +120,14 @@ test("real database preserves card content, names, moves and order on reload", a
   await expect(page.getByRole("region", { name: "Next up column" }).getByRole("heading", { name: title })).toHaveCount(1);
   expect(await snapshot(page)).toEqual(before);
   expect(before.columns[1].cards[1]).toMatchObject({ title, details: "Saved context" });
-  await page.getByRole("button", { name: "Rename Next up", exact: true }).click();
+  await chooseListAction(page, "Next up", "Rename list");
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Planned");
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");
   await expect(page.getByRole("region", { name: "Planned column" })).toBeVisible();
-  await page.getByRole("button", { name: `Delete ${title}`, exact: true }).click();
+  await deleteCard(page.getByRole("article").filter({ has: page.getByRole("heading", { name: title, exact: true }) }));
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole("button", { name: "Rename Ideas", exact: true })).toBeVisible();
+  await expect(listActions(page, "Ideas")).toBeVisible();
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   expect(errors).toEqual([]);
   await page.screenshot({ path: info.outputPath("persistent-board.png"), fullPage: true });
@@ -138,9 +139,9 @@ test("two tabs reject a stale save and reload canonical state", async ({ page, c
   await add(page, title);
   const other = await context.newPage();
   await open(other);
-  await page.getByRole("button", { name: `Delete ${title}`, exact: true }).click();
+  await deleteCard(page.getByRole("article").filter({ has: page.getByRole("heading", { name: title, exact: true }) }));
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
-  await other.getByRole("button", { name: "Rename Ideas", exact: true }).click();
+  await chooseListAction(other, "Ideas", "Rename list");
   await other.getByRole("textbox", { name: "Column name", exact: true }).fill("Stale name");
   await other.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");
   await expect(other.locator(".storage-error").getByRole("alert")).toContainText("another tab");
@@ -157,23 +158,26 @@ test("controlled assistant proposals commit to the real database and stale propo
     revision: route.request().postDataJSON().revision,
     message: "Done", operations: [{ type: "create", list: "Ideas", sourceList: null, card: null, title, details: "Saved by assistant" }],
   } }));
+  await openAssistant(page);
   await page.getByLabel("What would you like to change?").fill("Create a card");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByRole("log")).toContainText(`Created "${title}"`);
+  await closeAssistant(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: title, exact: true })).toHaveCount(1);
   const other = await context.newPage();
   await open(other);
-  await page.getByRole("button", { name: `Delete ${title}`, exact: true }).click();
+  await deleteCard(page.getByRole("article").filter({ has: page.getByRole("heading", { name: title, exact: true }) }));
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   // The controlled plan's revision matches this stale tab, but the real write API rejects it.
   await other.route("**/api/assistant", route => route.fulfill({ json: {
     revision: route.request().postDataJSON().revision, message: "Done",
     operations: [{ type: "create", list: "Ideas", sourceList: null, card: null, title: "Must not save", details: null }],
   } }));
+  await openAssistant(other);
   await other.getByLabel("What would you like to change?").fill("Create a card");
   await other.getByRole("button", { name: "Send", exact: true }).click();
-  await expect(other.getByRole("region", { name: "Board assistant", exact: true }).getByRole("alert")).toContainText("another tab");
+  await expect(other.getByRole("dialog", { name: "AI Assistant", exact: true }).getByRole("alert")).toContainText("another tab");
   expect((await snapshot(other)).columns.flatMap(column => column.cards).some(card => card.title === "Must not save")).toBe(false);
   await other.close();
 });
@@ -182,7 +186,7 @@ test("failed saves preserve the board and expose retry feedback", async ({ page 
   await open(page);
   const before = await snapshot(page);
   await page.route("**/api/board/actions", route => route.fulfill({ status: 503, json: { error: "Board storage is unavailable." } }));
-  await page.getByRole("button", { name: "Rename Ideas", exact: true }).click();
+  await chooseListAction(page, "Ideas", "Rename list");
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Should not save");
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");
   await expect(page.locator(".storage-error").getByRole("alert")).toContainText("storage is unavailable");

@@ -3,17 +3,22 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import Home from "../app/page";
 
+async function chooseListAction(user: ReturnType<typeof userEvent.setup>, name: string, action: "Rename list" | "Delete list") {
+  await user.click(await screen.findByRole("button", { name: "List actions for " + name }));
+  await user.click(screen.getByRole("button", { name: action }));
+}
+
 describe("board interface", () => {
   it("confirms populated list deletion, cancels without changes, then deletes its cards too", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await user.click(await screen.findByRole("button", { name: "Delete list Ideas" }));
+    await chooseListAction(user, "Ideas", "Delete list");
     const dialog = screen.getByRole("dialog", { name: "Delete this list?" });
     expect(dialog).toHaveTextContent("also deletes its 3 cards");
     expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.getAllByRole("article")).toHaveLength(12);
-    await user.click(screen.getByRole("button", { name: "Delete list Ideas" }));
+    await chooseListAction(user, "Ideas", "Delete list");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete list" }));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Ideas column" })).not.toBeInTheDocument());
     expect(screen.getAllByRole("article")).toHaveLength(9);
@@ -24,7 +29,7 @@ describe("board interface", () => {
     render(<Home />);
     await user.click(await screen.findByRole("button", { name: "Add list" }));
     await user.type(screen.getByLabelText(/List name/), "Empty{Enter}");
-    await user.click(await screen.findByRole("button", { name: "Delete list Empty" }));
+    await chooseListAction(user, "Empty", "Delete list");
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("Delete the empty list Empty?");
     expect(screen.getByRole("region", { name: "Empty column" })).toBeInTheDocument();
@@ -50,7 +55,7 @@ describe("board interface", () => {
     expect(within(list).queryAllByRole("article")).toHaveLength(0);
     expect(screen.getAllByRole("region", { name: / column$/ })).toHaveLength(6);
     expect(screen.getAllByRole("article")).toHaveLength(12);
-    await user.click(within(list).getByRole("button", { name: "Rename Released" }));
+    await chooseListAction(user, "Released", "Rename list");
     await user.clear(screen.getByLabelText("Column name"));
     await user.type(screen.getByLabelText("Column name"), "Shipped{Enter}");
     await user.click(within(list).getByRole("button", { name: "Add a card" }));
@@ -71,14 +76,14 @@ describe("board interface", () => {
   });
   it("renders exactly five populated columns", async () => {
     render(<Home />);
-    await screen.findByRole("button", { name: "Rename Ideas" });
+    await screen.findByRole("button", { name: "List actions for Ideas" });
     expect(screen.getAllByRole("region", { name: / column$/ })).toHaveLength(5);
     expect(screen.getAllByRole("article")).toHaveLength(12);
   });
   it("announces the picked-up card title and its current position", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await screen.findByRole("button", { name: "Rename Ideas" });
+    await screen.findByRole("button", { name: "List actions for Ideas" });
     const handle = screen.getByRole("button", { name: "Move Give the homepage a fresh start" });
     handle.focus();
     await user.keyboard("[Space]");
@@ -93,7 +98,7 @@ describe("board interface", () => {
   it("validates card creation, saves title and details, and updates the selected column", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await screen.findByRole("button", { name: "Rename Ideas" });
+    await screen.findByRole("button", { name: "List actions for Ideas" });
     const column = screen.getByRole("region", { name: "Planned column" });
     await user.click(within(column).getByRole("button", { name: "Add a card" }));
     expect(screen.getByRole("button", { name: "Add card" })).toBeDisabled();
@@ -111,7 +116,7 @@ describe("board interface", () => {
   it("supports title-only cards", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await screen.findByRole("button", { name: "Rename Ideas" });
+    await screen.findByRole("button", { name: "List actions for Ideas" });
     await user.click(screen.getAllByRole("button", { name: "Add a card" })[0]);
     await user.type(screen.getByLabelText(/Title/), "Title only");
     await user.click(screen.getByRole("button", { name: "Add card" }));
@@ -120,7 +125,7 @@ describe("board interface", () => {
   it.each(["Cancel", "Close dialog", "backdrop", "Escape"])("cancels creation with %s without adding a card", async method => {
     const user = userEvent.setup();
     render(<Home />);
-    await screen.findByRole("button", { name: "Rename Ideas" });
+    await screen.findByRole("button", { name: "List actions for Ideas" });
     await user.click(screen.getAllByRole("button", { name: "Add a card" })[0]);
     await user.type(screen.getByLabelText(/Title/), "Do not save");
     if (method === "backdrop") fireEvent.click(screen.getByRole("dialog"));
@@ -132,8 +137,8 @@ describe("board interface", () => {
   it("renames a column, rejects whitespace, and cancels subsequent changes", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await screen.findByRole("button", { name: "Rename Ideas" });
-    await user.click(screen.getByRole("button", { name: "Rename Ideas" }));
+    await screen.findByRole("button", { name: "List actions for Ideas" });
+    await chooseListAction(user, "Ideas", "Rename list");
     await user.clear(screen.getByLabelText("Column name"));
     await user.type(screen.getByLabelText("Column name"), "  ");
     expect(screen.getByRole("button", { name: "Save column name" })).toBeDisabled();
@@ -142,28 +147,31 @@ describe("board interface", () => {
     await user.clear(screen.getByLabelText("Column name"));
     await user.type(screen.getByLabelText("Column name"), "Backlog{Enter}");
     expect(screen.getByRole("region", { name: "Backlog column" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Rename Backlog" }));
+    await chooseListAction(user, "Backlog", "Rename list");
     await user.type(screen.getByLabelText("Column name"), " discarded{Escape}");
     expect(screen.getByRole("region", { name: "Backlog column" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Rename Backlog" }));
+    await chooseListAction(user, "Backlog", "Rename list");
     await user.click(screen.getByRole("button", { name: "Cancel rename" }));
     expect(screen.getAllByRole("region", { name: / column$/ })).toHaveLength(5);
   });
   it("deletes intended cards and exposes an empty-column state", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await screen.findByRole("button", { name: "Rename Ideas" });
+    await screen.findByRole("button", { name: "List actions for Ideas" });
     const done = screen.getByRole("region", { name: "Done column" });
-    for (const article of within(done).getAllByRole("article")) await user.click(within(article).getByRole("button", { name: /^Delete / }));
+    for (const article of within(done).getAllByRole("article")) {
+      await user.click(within(article).getByRole("button", { name: /^Card actions for / }));
+      await user.click(within(article).getByRole("button", { name: "Delete card" }));
+    }
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(within(done).queryAllByRole("article")).toHaveLength(0);
-    expect(within(done).getByText("Drop a card here or add one below.")).toBeInTheDocument();
+    expect(within(done).getByRole("button", { name: "Add a card" })).toBeInTheDocument();
     expect(screen.getAllByRole("article")).toHaveLength(10);
   });
   it("keeps keyboard focus within the creation dialog in both directions", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await screen.findByRole("button", { name: "Rename Ideas" });
+    await screen.findByRole("button", { name: "List actions for Ideas" });
     await user.click(screen.getAllByRole("button", { name: "Add a card" })[0]);
     expect(screen.getByLabelText(/Title/)).toHaveFocus();
     const close = screen.getByRole("button", { name: "Close dialog" });

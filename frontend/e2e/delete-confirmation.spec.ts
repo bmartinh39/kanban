@@ -1,6 +1,5 @@
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { expect, test } from "./fixtures";
+import { chooseListAction, listActions } from "./board-controls";
 
 for (const populated of [false, true]) {
   test(`${populated ? "populated" : "empty"} lists show an animated confirmation before deletion`, async ({ page, boardState }, info) => {
@@ -10,8 +9,8 @@ for (const populated of [false, true]) {
     page.on("pageerror", error => errors.push(error.message));
     await page.goto("/");
     await expect(page).toHaveTitle(/Forma/);
-    const trigger = page.getByRole("button", { name: "Delete list Release planning", exact: true });
-    await trigger.click();
+    const trigger = listActions(page, "Release planning");
+    await chooseListAction(page, "Release planning", "Delete list");
     const dialog = page.getByRole("dialog", { name: "Delete this list?" });
     await expect(dialog).toBeVisible();
     await expect(dialog).toBeInViewport({ ratio: 1 });
@@ -27,14 +26,14 @@ for (const populated of [false, true]) {
       expect(bounds.x).toBeCloseTo(0, 0);
       expect(bounds.y + bounds.height).toBeCloseTo(page.viewportSize()!.height, 0);
     }
-    if (populated) await page.screenshot({ path: join(tmpdir(), `kanban-delete-confirmation-${info.project.name}.png`), scale: "css" });
+    if (populated) await page.screenshot({ path: info.outputPath("delete-confirmation.png"), scale: "css" });
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(dialog).toHaveClass(/is-closing/);
     await expect(dialog).toHaveCSS("animation-name", "confirmation-out");
     await expect(dialog).toHaveCount(0);
     expect(boardState).toEqual(before);
     await expect(trigger).toBeFocused();
-    await trigger.click();
+    await chooseListAction(page, "Release planning", "Delete list");
     await dialog.getByRole("button", { name: "Delete list", exact: true }).click();
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(0);
@@ -47,7 +46,7 @@ for (const populated of [false, true]) {
 test("reduced motion still closes confirmation and preserves cancelled lists", async ({ page, boardState }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  await page.getByRole("button", { name: "Delete list Ideas", exact: true }).click();
+  await chooseListAction(page, "Ideas", "Delete list");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(boardState.columns).toHaveLength(5);

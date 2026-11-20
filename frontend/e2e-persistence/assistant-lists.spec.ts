@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { BoardSnapshot } from "../app/board-commands";
+import { openAssistant } from "../e2e/board-controls";
 
 test("assistant list changes persist only after confirmation through the real SQLite API", async ({ page }, info) => {
   const name = `Assistant list ${info.project.name}`;
@@ -15,6 +16,7 @@ test("assistant list changes persist only after confirmation through the real SQ
   let turn = 0;
   await page.route("**/api/assistant", route => route.fulfill({ json: { message: "Proposed", revision: route.request().postDataJSON().revision, operations: [{ ...operations[turn++], sourceList: null, card: null, details: null }] } }));
   await page.goto("/");
+  await openAssistant(page);
   const input = page.getByLabel("What would you like to change?");
   for (const request of ["Create a list", "Rename that list"]) {
     await input.fill(request);
@@ -27,9 +29,10 @@ test("assistant list changes persist only after confirmation through the real SQ
   expect(saved.columns.at(-1)).toMatchObject({ name: renamed, cards: [] });
   expect(saved.revision).toBe(before.revision + 2);
   await page.reload();
+  await openAssistant(page);
   await input.fill("Delete the list");
   await input.press("Enter");
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByRole("dialog", { name: "Delete this list?", exact: true });
   await expect(dialog).toContainText(`Delete the empty list ${renamed}`);
   expect(await read()).toEqual(saved);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();

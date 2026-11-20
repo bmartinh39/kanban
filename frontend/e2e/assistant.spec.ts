@@ -1,5 +1,8 @@
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { type Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { closeAssistant, deleteCard, openAssistant } from "./board-controls";
 
 const operation = (fields: Record<string, unknown>) => ({
   type: "create", list: null, sourceList: null, card: null, title: null, details: null, ...fields,
@@ -7,7 +10,7 @@ const operation = (fields: Record<string, unknown>) => ({
 async function openChat(page: Page) {
   await page.goto("/");
   await expect(page).toHaveTitle(/Forma/);
-  await expect(page.getByRole("region", { name: "Board assistant", exact: true })).toBeVisible();
+  await openAssistant(page);
   await expect(page.getByRole("heading", { name: "AI Assistant", exact: true })).toBeVisible();
 }
 async function send(page: Page, text: string) {
@@ -92,6 +95,7 @@ test("assistant creates, edits and moves cards using the current board, then rel
   await expect(page.getByRole("log")).toContainText('Updated "Launch notes".');
   await send(page, "Move Launch notes from Planned to Done");
   await expect(page.getByRole("log")).toContainText('Moved "Launch notes" to Done.');
+  await closeAssistant(page);
   const card = page.getByRole("region", { name: "Done column" }).getByTestId(`card-${cardId}`);
   await card.scrollIntoViewIfNeeded();
   await expect(card).toContainText("Launch notes");
@@ -117,9 +121,9 @@ test("assistant preserves cards on clarification, invalid targets and service fa
   await send(page, "Move that card");
   await expect(page.getByRole("log")).toContainText("Which card do you mean?");
   await send(page, "Create Do not create in Missing list");
-  await expect(page.getByRole("region", { name: "Board assistant", exact: true }).getByRole("alert")).toContainText('List "Missing list" was not found');
+  await expect(page.getByRole("dialog", { name: "AI Assistant", exact: true }).getByRole("alert")).toContainText('List "Missing list" was not found');
   await send(page, "Create a card");
-  await expect(page.getByRole("region", { name: "Board assistant", exact: true }).getByRole("alert")).toContainText("OPENAI_API_KEY");
+  await expect(page.getByRole("dialog", { name: "AI Assistant", exact: true }).getByRole("alert")).toContainText("OPENAI_API_KEY");
   await expect(page.getByLabel("What would you like to change?")).toHaveValue("Create a card");
   await expect(page.getByRole("article")).toHaveCount(12);
   await expect(page.getByRole("heading", { name: "Do not create" })).toHaveCount(0);
@@ -134,11 +138,13 @@ test("assistant rejects a stale reply and keeps the board's manual changes", asy
   });
   await openChat(page);
   await send(page, "Create Stale task in Ideas");
-  await expect(page.getByRole("region", { name: "Board assistant", exact: true }).getByRole("status")).toContainText("Thinking");
-  await page.getByRole("button", { name: "Delete Give the homepage a fresh start", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "AI Assistant", exact: true }).getByRole("status")).toContainText("Thinking");
+  await closeAssistant(page);
+  await deleteCard(page.getByTestId("card-c1"));
   await expect(page.getByRole("article")).toHaveCount(11);
   release();
-  await expect(page.getByRole("region", { name: "Board assistant", exact: true }).getByRole("alert")).toContainText("board changed");
+  await openAssistant(page);
+  await expect(page.getByRole("dialog", { name: "AI Assistant", exact: true }).getByRole("alert")).toContainText("board changed");
   await expect(page.getByRole("article")).toHaveCount(11);
   await expect(page.getByRole("heading", { name: "Stale task" })).toHaveCount(0);
 });
@@ -153,7 +159,7 @@ test("assistant explains a server connection failure and can retry without chang
   });
   await openChat(page);
   await send(page, "Create Connection recovered in Planned");
-  const panel = page.getByRole("region", { name: "Board assistant", exact: true });
+  const panel = page.getByRole("dialog", { name: "AI Assistant", exact: true });
   await expect(panel.getByRole("alert")).toContainText("server's internet access");
   await expect(page.getByLabel("What would you like to change?")).toHaveValue("Create Connection recovered in Planned");
   await expect(page.getByRole("article")).toHaveCount(12);
@@ -165,29 +171,62 @@ test("assistant explains a server connection failure and can retry without chang
   expect(boardState.revision).toBe(1);
 });
 
-test("assistant stays visible, is keyboard accessible, and fits the viewport", async ({ page }) => {
-  await openChat(page);
-  await page.getByLabel("What would you like to change?").fill("   ");
-  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
-  const panel = page.getByRole("region", { name: "Board assistant", exact: true });
-  const box = await panel.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.x).toBeGreaterThanOrEqual(0);
-  expect(box!.y).toBeGreaterThanOrEqual(0);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-  expect(box!.y + box!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
-  if (page.viewportSize()!.width > 700) {
-    const board = await page.getByLabel("Project board columns").boundingBox();
-    expect(board!.x + board!.width).toBeLessThanOrEqual(box!.x);
-    expect((await page.getByRole("main").boundingBox())!.y).toBeCloseTo(box!.y, 0);
+test("assistant opens beside the full-width board or as a mobile drawer and preserves chat", async ({ page }, info) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await page.route("**/api/assistant", route => route.fulfill({ json: { message: "Which card?", revision: route.request().postDataJSON().revision, operations: [] } }));
+  const narrow = info.project.name === "mobile";
+  if (!narrow) await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Forma/);
+  const toggle = page.getByRole("button", { name: "Assistant", exact: true });
+  const panel = page.getByRole("dialog", { name: "AI Assistant", exact: true });
+  const board = page.getByLabel("Project board columns");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(panel).toHaveCount(0);
+  const fullWidth = (await board.boundingBox())!.width;
+  expect(fullWidth).toBeCloseTo((await page.getByRole("main").boundingBox())!.width);
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  await page.screenshot({ path: join(tmpdir(), `kanban-issue14-board-${info.project.name}.png`), scale: "css" });
+  await toggle.press("Enter");
+  await expect(panel).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const close = panel.getByRole("button", { name: "Close assistant" });
+  await expect(close).toBeFocused();
+  await expect.poll(() => panel.evaluate(element => element.matches(":modal"))).toBe(narrow);
+  const bounds = (await panel.boundingBox())!;
+  const boardBounds = (await board.boundingBox())!;
+  if (narrow) {
+    await board.evaluate(element => (element as HTMLElement).focus());
+    await expect(close).toBeFocused();
+    await expect.poll(async () => {
+      const box = (await panel.boundingBox())!;
+      return Math.round(box.y + box.height);
+    }).toBe(page.viewportSize()!.height);
+    expect(boardBounds.width).toBeCloseTo(fullWidth);
+  } else {
+    expect(bounds.y).toBeCloseTo(boardBounds.y);
+    expect(bounds.x).toBeGreaterThan(boardBounds.x + boardBounds.width);
+    expect(boardBounds.width).toBeLessThan(fullWidth);
   }
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expect(panel).toBeVisible();
-  expect((await panel.boundingBox())!.y).toBeCloseTo(box!.y, 0);
-  await page.getByLabel("What would you like to change?").fill("Create a card");
-  await page.getByLabel("What would you like to change?").focus();
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(panel).toBeVisible();
+  await send(page, "Move a card");
+  await expect(panel.getByRole("log")).toContainText("Which card?");
+  const input = page.getByLabel("What would you like to change?");
+  await input.fill("Keep this draft");
+  await page.screenshot({ path: join(tmpdir(), `kanban-issue14-assistant-${info.project.name}.png`), scale: "css" });
+  await input.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+  expect((await board.boundingBox())!.width).toBeCloseTo(fullWidth);
+  await toggle.click();
+  await expect(input).toHaveValue("Keep this draft");
+  await expect(panel.getByRole("log")).toContainText("Which card?");
+  await page.reload();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await toggle.click();
+  await expect(input).toBeEmpty();
+  await expect(panel.getByRole("log")).not.toContainText("Which card?");
+  await expect(page.locator("nextjs-portal").filter({ hasText: "Runtime Error" })).toHaveCount(0);
+  expect(errors).toEqual([]);
 });

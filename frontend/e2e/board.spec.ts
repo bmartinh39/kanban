@@ -1,11 +1,12 @@
 import { type Locator, type Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { chooseListAction, deleteCard, listActions, openAssistant } from "./board-controls";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Project board", level: 1 })).toBeVisible();
   // Wait for hydration before interacting with client controls.
-  await page.getByRole("button", { name: "Rename Ideas", exact: true }).click();
+  await chooseListAction(page, "Ideas", "Rename list");
   await expect(page.getByRole("textbox", { name: "Column name", exact: true })).toBeVisible();
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Escape");
 });
@@ -35,7 +36,6 @@ async function pointerMove(page: Page, cardId: string, target: string) {
   const cards = column.getByRole("article");
   const lastCard = await cards.count() ? await cards.last().boundingBox() : null;
   const targetY = lastCard ? lastCard.y + lastCard.height + 12 : to.y + 80;
-  // This wide-board scenario keeps both endpoints beside the persistent assistant.
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(from.x + from.width / 2 + 10, from.y + from.height / 2, { steps: 5 });
@@ -52,10 +52,12 @@ async function keyboardMove(page: Page, title: string, target: string, cancel = 
   await handle.focus();
   await page.keyboard.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".drag-help")).toBeVisible();
   await page.keyboard.press("ArrowRight");
   // Scrolling between rows updates the drop target asynchronously on narrow screens.
   await expect(page.getByRole("region", { name: `${target} column`, exact: true })).toHaveClass(/is-over/);
   await page.keyboard.press(cancel ? "Escape" : "Space");
+  await expect(page.locator(".drag-help")).toHaveCount(0);
   await expect(page.locator(".drag-preview")).toHaveCount(0);
   await expect(handle).toBeFocused();
 }
@@ -63,6 +65,25 @@ async function keyboardMove(page: Page, title: string, target: string, cancel = 
 test("opens one board with five columns and dummy data", async ({ page }) => {
   await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(5);
   await expect(page.getByRole("article")).toHaveCount(12);
+});
+
+test("action menus hide commands until opened and dismiss with Escape or outside click", async ({ page }) => {
+  const trigger = listActions(page, "Ideas");
+  const rename = page.getByRole("button", { name: "Rename list", exact: true });
+  await expect(rename).toHaveCount(0);
+  await trigger.press("Enter");
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Tab");
+  await expect(rename).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(rename).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  const finalList = listActions(page, "Done");
+  await finalList.click();
+  await expect(rename).toBeInViewport({ ratio: 1 });
+  await page.getByRole("heading", { name: "Done", exact: true }).click();
+  await expect(finalList).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: "Delete card", exact: true })).toHaveCount(0);
 });
 
 test("creates cards with and without details in their selected columns", async ({ page }) => {
@@ -104,7 +125,7 @@ test("traps dialog focus and closes through the close button", async ({ page }) 
 });
 
 test("renames a column, rejects a blank name, and cancels edits", async ({ page }) => {
-  await page.getByRole("button", { name: "Rename Ideas", exact: true }).click();
+  await chooseListAction(page, "Ideas", "Rename list");
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("  ");
   await expect(page.getByRole("button", { name: "Save column name" })).toBeDisabled();
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("  Backlog  ");
@@ -112,36 +133,35 @@ test("renames a column, rejects a blank name, and cancels edits", async ({ page 
   const renamed = page.getByRole("region", { name: "Backlog column", exact: true });
   await expect(renamed).toBeVisible();
   await expect(renamed.getByRole("article")).toHaveCount(3);
-  await page.getByRole("button", { name: "Rename Backlog", exact: true }).click();
+  await chooseListAction(page, "Backlog", "Rename list");
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Discarded");
   await page.getByRole("button", { name: "Cancel rename" }).click();
   await expect(renamed).toBeVisible();
-  await expect(page.getByRole("button", { name: "Rename Backlog", exact: true })).toBeFocused();
+  await expect(listActions(page, "Backlog")).toBeFocused();
 });
 
 test("deletes only selected cards and allows adding to an empty column", async ({ page }) => {
   const done = page.getByRole("region", { name: "Done column", exact: true });
   for (const card of ["c11", "c12"]) {
-    await page.getByTestId(`card-${card}`).hover();
-    await page.getByTestId(`card-${card}`).getByRole("button", { name: /^Delete / }).click();
+    await deleteCard(page.getByTestId(`card-${card}`));
   }
   await expect(done.getByRole("article")).toHaveCount(0);
-  await expect(done.getByText("Drop a card here or add one below.")).toBeVisible();
+  await expect(done.getByRole("button", { name: "Add a card" })).toBeVisible();
   await expect(page.getByRole("article")).toHaveCount(10);
   await addCard(page, "Done", "First card back");
   await expect(done.getByRole("heading", { name: "First card back" })).toBeVisible();
-  await expect(done.getByText("Drop a card here or add one below.")).toHaveCount(0);
 });
 
 test("appends by pointer in populated and empty columns and reorders after a second arrival", async ({ page }) => {
   await page.setViewportSize({ width: 1900, height: 1000 });
+  await openAssistant(page);
+  await expect(page.getByRole("dialog", { name: "AI Assistant" })).toBeVisible();
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
   const done = page.getByRole("region", { name: "Done column", exact: true });
   await pointerMove(page, "c1", "Planned");
   await expectCardOrder(planned, ["c4", "c5", "c1"]);
   for (const card of ["c11", "c12"]) {
-    await page.getByTestId(`card-${card}`).hover();
-    await page.getByTestId(`card-${card}`).getByRole("button", { name: /^Delete / }).click();
+    await deleteCard(page.getByTestId(`card-${card}`));
   }
   await expectCardOrder(done, []);
   await pointerMove(page, "c1", "Done");
@@ -204,7 +224,7 @@ test("appends, cancels, and reorders by keyboard after scrolling, then persists 
 
 test("announces sorting a new card using its title, renamed column, and position", async ({ page }) => {
   await addCard(page, "Ideas", "Write release notes");
-  await page.getByRole("button", { name: "Rename Ideas", exact: true }).click();
+  await chooseListAction(page, "Ideas", "Rename list");
   const columnName = page.getByRole("textbox", { name: "Column name", exact: true });
   await columnName.fill("Incoming");
   await columnName.press("Enter");
@@ -236,10 +256,10 @@ test("handles a complete workflow and persists changes on reload", async ({ page
   await keyboardMove(page, "Session task", "Planned");
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
   await expect(planned.getByRole("heading", { name: "Session task" })).toBeVisible();
-  await page.getByRole("button", { name: "Rename Planned", exact: true }).click();
+  await chooseListAction(page, "Planned", "Rename list");
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Next up");
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");
-  await page.getByRole("button", { name: "Delete Session task", exact: true }).click();
+  await deleteCard(page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Session task", exact: true }) }));
   await expect(page.getByRole("heading", { name: "Session task" })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("region", { name: "Next up column", exact: true })).toBeVisible();

@@ -1,7 +1,6 @@
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import type { Page } from "@playwright/test";
 import { expect, test, visibleBoardFrame } from "./fixtures";
+import { chooseListAction, listActions } from "./board-controls";
 
 const list = (page: Page, name: string) => page.getByRole("region", { name: `${name} column`, exact: true });
 async function createList(page: Page, name: string) {
@@ -22,9 +21,9 @@ test.beforeEach(async ({ page }) => {
 
 test("deletes a populated list and its cards only after confirmation", async ({ page, boardState }) => {
   const before = structuredClone(boardState);
-  const trigger = page.getByRole("button", { name: "Delete list Ideas", exact: true });
+  const trigger = listActions(page, "Ideas");
   for (const action of ["Cancel", "Escape", "Close dialog", "backdrop"]) {
-    await trigger.click();
+    await chooseListAction(page, "Ideas", "Delete list");
     const dialog = page.getByRole("dialog", { name: "Delete this list?" });
     await expect(dialog).toContainText("also deletes its 3 cards");
     await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
@@ -35,7 +34,7 @@ test("deletes a populated list and its cards only after confirmation", async ({ 
     await expect(trigger).toBeFocused();
     expect(boardState).toEqual(before);
   }
-  await trigger.click();
+  await chooseListAction(page, "Ideas", "Delete list");
   await page.getByRole("dialog").getByRole("button", { name: "Delete list", exact: true }).click();
   await expect(list(page, "Ideas")).toHaveCount(0);
   await expect(page.getByRole("article")).toHaveCount(9);
@@ -49,7 +48,7 @@ test("deletes a populated list and its cards only after confirmation", async ({ 
 test("deletes the last empty list and can create a fresh list", async ({ page, boardState }) => {
   boardState.columns = [{ id: "only", name: "Only", cards: [] }];
   await page.reload();
-  await page.getByRole("button", { name: "Delete list Only", exact: true }).click();
+  await chooseListAction(page, "Only", "Delete list");
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Delete list", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -63,7 +62,7 @@ test("deletes the last empty list and can create a fresh list", async ({ page, b
 test("a stale list deletion reloads the latest board without removing cards", async ({ page, boardState }) => {
   const before = structuredClone(boardState);
   boardState.revision++;
-  await page.getByRole("button", { name: "Delete list Ideas", exact: true }).click();
+  await chooseListAction(page, "Ideas", "Delete list");
   await page.getByRole("dialog").getByRole("button", { name: "Delete list", exact: true }).click();
   await expect(page.locator(".storage-error").getByRole("alert")).toContainText("changed");
   expect(boardState.columns).toEqual(before.columns);
@@ -107,9 +106,9 @@ test("creates empty trimmed lists, renames, adds cards, and reaches every list",
   await expect(page).toHaveTitle(/Forma/);
   await createList(page, "  Released  ");
   await expect(list(page, "Released").getByRole("article")).toHaveCount(0);
-  await expect(list(page, "Released")).toContainText("Drop a card here or add one below.");
+  await expect(list(page, "Released").getByRole("button", { name: "Add a card" })).toBeVisible();
   expect(boardState.columns[5].name).toBe("Released");
-  await page.getByRole("button", { name: "Rename Released", exact: true }).click();
+  await chooseListAction(page, "Released", "Rename list");
   await page.getByLabel("Column name", { exact: true }).fill("Shipped");
   await page.getByLabel("Column name", { exact: true }).press("Enter");
   await expect(list(page, "Shipped")).toBeVisible();
@@ -130,15 +129,14 @@ test("creates empty trimmed lists, renames, adds cards, and reaches every list",
   expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(1);
   expect(Math.min(...widths)).toBeGreaterThanOrEqual(220);
   for (const column of boardState.columns) {
-    const target = list(page, column.name).getByRole("button", { name: `Rename ${column.name}`, exact: true });
+    const target = listActions(page, column.name);
     await target.focus();
     await expect(target).toBeInViewport();
   }
-  await page.getByRole("button", { name: "Rename Shipped", exact: true }).focus();
-  await page.getByRole("button", { name: "Rename Shipped", exact: true }).evaluate(element => element.scrollIntoView({ block: "start" }));
+  await listActions(page, "Shipped").focus();
+  await listActions(page, "Shipped").evaluate(element => element.scrollIntoView({ block: "start" }));
   await page.evaluate(() => window.scrollBy(0, -80));
-  await expect(page.getByRole("region", { name: "Board assistant", exact: true })).toBeInViewport();
-  await page.screenshot({ path: join(tmpdir(), `kanban-issue3-${info.project.name}.png`) });
+  await page.screenshot({ path: info.outputPath("added-lists.png") });
   await expect(page.locator("nextjs-portal").getByText(/error/i)).toHaveCount(0);
   expect(errors).toEqual([]);
   const saved = structuredClone(boardState);

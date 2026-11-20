@@ -1,5 +1,6 @@
 import { type Locator, type Page } from "@playwright/test";
 import { expect, test, visibleBoardFrame } from "./fixtures";
+import { chooseListAction, listActions } from "./board-controls";
 
 const originalOrder = ["card-c1", "card-c2", "card-c3"];
 const middleOrder = ["card-c2", "card-c1", "card-c3"];
@@ -71,11 +72,10 @@ async function pointerReorder(page: Page, targetId: string, screenshot?: string)
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  const rename = page.getByRole("button", { name: "Rename Ideas", exact: true });
-  await rename.click();
+  await chooseListAction(page, "Ideas", "Rename list");
   await expect(page.getByRole("textbox", { name: "Column name" })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(rename).toBeFocused();
+  await expect(listActions(page, "Ideas")).toBeFocused();
 });
 
 test("keyboard reorders the same card to the middle, end, and start", async ({ page }) => {
@@ -243,7 +243,7 @@ for (const input of ["pointer", "keyboard"] as const) {
           await page.evaluate(() => window.scrollBy(0, -80));
           const target = await targetColumn.boundingBox();
           const frame = await visibleBoardFrame(page);
-          // Keep the point within the page area above the mobile assistant.
+          // Keep the point within the visible board frame.
           const left = Math.max(target!.x, frame!.x);
           const right = Math.min(target!.x + target!.width, frame!.x + frame!.width);
           await page.mouse.move((left + right) / 2, Math.min(target!.y + 80, frame!.y + frame!.height / 2), { steps: 10 });
