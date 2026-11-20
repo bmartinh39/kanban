@@ -11,7 +11,7 @@ import { boardReducer, type Card, type Column } from "./board-state";
 import { type BoardCommand } from "./board-commands";
 import { useBoard } from "./use-board";
 import { AssistantChat } from "./assistant-chat";
-import { DeleteListDialog } from "./delete-list-dialog";
+import { DeleteCardDialog, DeleteListDialog } from "./delete-list-dialog";
 import { prepareActions, type AssistantPlan } from "./assistant-commands";
 
 
@@ -21,7 +21,7 @@ function CardContent({ card }: { card: Card }) {
   return <><h3>{card.title}</h3>{card.details && <p>{card.details}</p>}</>;
 }
 
-function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete }: { card: Card; columnId: string; busy: boolean; insertOffset?: number; onDelete: () => void }) {
+function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete }: { card: Card; columnId: string; busy: boolean; insertOffset?: number; onDelete: (trigger: HTMLButtonElement) => void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging, transform, transition } = useSortable({
     id: card.id,
     disabled: busy,
@@ -34,13 +34,13 @@ function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete }: { card: 
   return <article ref={setNodeRef} style={style} className={`task-card${isDragging ? " is-dragging" : ""}`} data-testid={`card-${card.id}`}>
     <div className="card-tools">
       <button ref={setActivatorNodeRef} className="icon-button drag-handle" {...attributes} {...listeners} aria-label={`Move ${card.title}`}><GripVertical size={16} /></button>
-      <button className="icon-button delete-button" disabled={busy} onClick={onDelete} aria-label={`Delete ${card.title}`}><Trash2 size={14} /></button>
+      <button className="icon-button delete-button" disabled={busy} onClick={event => onDelete(event.currentTarget)} aria-label={`Delete ${card.title}`}><Trash2 size={14} /></button>
     </div>
     <CardContent card={card} />
   </article>;
 }
 
-function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRename }: { column: Column; index: number; busy: boolean; onAdd: (trigger: HTMLButtonElement) => void; onDelete: (id: string) => void; onDeleteList: (trigger: HTMLButtonElement) => void; onRename: (name: string) => void }) {
+function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRename }: { column: Column; index: number; busy: boolean; onAdd: (trigger: HTMLButtonElement) => void; onDelete: (card: Card, trigger: HTMLButtonElement) => void; onDeleteList: (trigger: HTMLButtonElement) => void; onRename: (name: string) => void }) {
   const { setNodeRef } = useDroppable({ id: column.id, data: { type: "column", columnId: column.id, index } });
   const { active, activeNodeRect, over, droppableRects } = useDndContext();
   const isOver = over?.data.current?.columnId === column.id;
@@ -72,7 +72,7 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
     <div className="card-stack" style={{ paddingBottom: gapHeight }}>
       {inserting && <div className="insertion-preview" aria-hidden="true" style={{ top: insertionTop, height: gapHeight - 11 }} />}
       <SortableContext items={column.cards.map(card => card.id)} strategy={verticalListSortingStrategy}>
-        {column.cards.map((card, cardIndex) => <TaskCard key={card.id} card={card} columnId={column.id} busy={busy} insertOffset={inserting && cardIndex >= insertionIndex ? gapHeight : 0} onDelete={() => onDelete(card.id)} />)}
+        {column.cards.map((card, cardIndex) => <TaskCard key={card.id} card={card} columnId={column.id} busy={busy} insertOffset={inserting && cardIndex >= insertionIndex ? gapHeight : 0} onDelete={trigger => onDelete(card, trigger)} />)}
       </SortableContext>
       {!column.cards.length && !inserting && <div className="empty-column"><Columns3 size={23} /><p>Drop a card here or add one below.</p></div>}
     </div>
@@ -129,6 +129,8 @@ export default function Home() {
   }
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [addingList, setAddingList] = useState(false);
+  const [deletingCard, setDeletingCard] = useState<{ card: Card; columnId: string } | null>(null);
+  const deletedCardColumn = useRef<string | null>(null);
   const [deletingList, setDeletingList] = useState<Column | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const addTrigger = useRef<HTMLButtonElement>(null);
@@ -141,6 +143,12 @@ export default function Home() {
     deletedList.current = false;
     document.querySelector<HTMLButtonElement>(".add-list")?.focus({ preventScroll: true });
   }, [savedBoard, storage.saving]);
+  useLayoutEffect(() => {
+    if (storage.saving || !deletedCardColumn.current) return;
+    const index = savedBoard.findIndex(column => column.id === deletedCardColumn.current);
+    deletedCardColumn.current = null;
+    boardViewport.current?.querySelectorAll<HTMLButtonElement>(".add-card")[index]?.focus({ preventScroll: true });
+  }, [savedBoard, storage.saving]);
   function deleteList(column: Column) {
     deletedList.current = true;
     setDeletingList(null);
@@ -148,6 +156,7 @@ export default function Home() {
   }
   function cancelDelete() {
     setDeletingList(null);
+    setDeletingCard(null);
     requestAnimationFrame(() => addTrigger.current?.focus({ preventScroll: true }));
   }
   useLayoutEffect(() => {
@@ -216,13 +225,18 @@ export default function Home() {
         onDragEnd={handleDragEnd}
         accessibility={{ announcements, screenReaderInstructions: { draggable: "Press Space to pick up a card. Use Up and Down to reorder it within its column. Use Left and Right to move it to another column. Press Space to drop, or Escape to cancel." } }}
       >
-        <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} busy={storage.saving || !storage.available} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={cardId => dispatch({ type: "delete", cardId })} onDeleteList={trigger => { addTrigger.current = trigger; setDeletingList(column); }} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div>{!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}</div>
+        <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} busy={storage.saving || !storage.available} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={(card, trigger) => { addTrigger.current = trigger; setDeletingCard({ card, columnId: column.id }); }} onDeleteList={trigger => { addTrigger.current = trigger; setDeletingList(column); }} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div>{!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}</div>
         <DragOverlay>{activeCard && <div className="task-card drag-preview"><div className="card-tools"><GripVertical size={16} /></div><CardContent card={activeCard} /></div>}</DragOverlay>
       </DndContext>
       <AssistantChat board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
     </main>
     {addingColumn && <AddItemDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={(title, details) => { dispatch({ type: "add", columnId: addingColumn.id, card: { id: crypto.randomUUID(), title, details } }); closeDialog(); }} />}
     {addingList && <AddItemDialog onClose={closeDialog} onAdd={name => { const listId = crypto.randomUUID(); createdList.current = listId; dispatch({ type: "create-list", listId, name }); closeDialog(); }} />}
+    {deletingCard && <DeleteCardDialog card={deletingCard.card} onClose={cancelDelete} onDelete={() => {
+      deletedCardColumn.current = deletingCard.columnId;
+      setDeletingCard(null);
+      dispatch({ type: "delete", cardId: deletingCard.card.id });
+    }} />}
     {deletingList && <DeleteListDialog columns={[deletingList]} onClose={cancelDelete} onDelete={() => deleteList(deletingList)} />}
   </div>;
 }

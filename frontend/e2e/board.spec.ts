@@ -124,6 +124,7 @@ test("deletes only selected cards and allows adding to an empty column", async (
   for (const card of ["c11", "c12"]) {
     await page.getByTestId(`card-${card}`).hover();
     await page.getByTestId(`card-${card}`).getByRole("button", { name: /^Delete / }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   }
   await expect(done.getByRole("article")).toHaveCount(0);
   await expect(done.getByText("Drop a card here or add one below.")).toBeVisible();
@@ -142,6 +143,7 @@ test("appends by pointer in populated and empty columns and reorders after a sec
   for (const card of ["c11", "c12"]) {
     await page.getByTestId(`card-${card}`).hover();
     await page.getByTestId(`card-${card}`).getByRole("button", { name: /^Delete / }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   }
   await expectCardOrder(done, []);
   await pointerMove(page, "c1", "Done");
@@ -240,6 +242,7 @@ test("handles a complete workflow and persists changes on reload", async ({ page
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Next up");
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");
   await page.getByRole("button", { name: "Delete Session task", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Session task" })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("region", { name: "Next up column", exact: true })).toBeVisible();

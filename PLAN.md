@@ -406,3 +406,29 @@ Verification used local Playwright because the Browser plugin runtime was unavai
 Lint, type checking and production build passed. The coverage run passed all 238 unit and component tests with 98.58% line coverage. All 18 production SQLite persistence scenarios passed across Chromium, Firefox and mobile Chromium. Assistant browser tests used controlled responses. Firefox required execution outside the filesystem sandbox to create its temporary profile.
 
 All 165 UI scenarios passed across desktop Chromium, Firefox and mobile Chromium, including focused reruns. The mobile save status now fits on one row at the tested viewport, and the failed-deletion regression verifies the board scroll position is preserved.
+
+
+## Issue #22: Confirm manual card deletion
+
+- [x] Verify isolated worktree, branch and clean base; inspect existing deletion callers.
+- [x] Reuse the approved deletion dialog for manual card deletion; preserve list/assistant behavior and restore focus.
+- [x] Verify cancellation never saves and confirmation deletes only the selected card using the existing revision-checked command.
+- [x] Run lint, types, focused component/browser checks and diff review; record results and limits.
+
+Browser plugin not available; use regular Playwright on dedicated port 3432 with task-local temporary database and artifacts. No provider calls or real keys. The save/API contract is unchanged; existing persistence callers are updated to confirm explicitly.
+
+
+Verification (2026-11-20):
+
+- `npm ci --no-audit --no-fund`: independent dependencies installed; lockfile unchanged.
+- `npm test -- tests/board.test.tsx tests/assistant-chat.test.tsx tests/use-board.test.tsx`: 36 passed across 3 files. Covers every card-dialog cancellation, no save on cancellation, selected deletion/empty list, shared list/assistant confirmation and existing save/recovery contracts.
+- `npm run lint`, `npm run typecheck`, `git diff --check`: passed.
+- Chromium: selected confirmation/list/assistant and existing card-deletion callers in `card-delete-confirmation`, `delete-confirmation`, `lists`, `assistant-lists`, `board`, `assistant`; 23 unique selected cases passed across runs. Initial run: 19/21 passed; the new test incorrectly assumed native Shift+Tab wrapping into the last button, corrected to exercise Tab/Shift+Tab between actual controls without changing dialog behavior. Existing mixed pointer/keyboard reorder case failed at its final ordering assertion once and passed unchanged on focused rerun; no drag logic or assertions weakened. Focused rerun including HTTP409/503: 5/5 passed.
+- `npm run test:e2e -- e2e/card-delete-confirmation.spec.ts e2e/delete-confirmation.spec.ts e2e/assistant-lists.spec.ts --project=firefox --project=mobile`: Firefox 12/12 passed; mobile initially 11/12 passed because a new sheet-position assertion measured the entrance animation mid-transform. Wait for actual animations to finish before measuring; focused mobile card-file rerun 4/4 passed. Final selected mobile coverage: 12 unique cases passed.
+- Browser flow: `/` -> delete icon -> approved modal/sheet -> Cancel/close/Escape/backdrop preserves cards/revision and makes zero writes; explicit confirmation sends exactly one selected-card command at revision 0. Successful deletion and HTTP409/503 recovery restore focus to the selected list's Add a card. Conflicts/failures retain cards without replay. Reduced motion verified. Existing list and assistant batch confirmation regressions passed in all three configurations.
+- Page title/content, no framework overlay, page/console error checks, screenshots and interactions verified. Visually reviewed desktop 1440x1000 and mobile 390x664 card confirmations. Screenshots retained outside repo in `%TEMP%/kanban-issue-22-evidence`.
+- All browser runs used port 3432, isolated task TEMP/TMP/startup SQLite, cleared provider keys and controlled API responses. The initial sandboxed run blocked in dev-server teardown; inspected exact process lineage and stopped only this task's verified server processes. Subsequent approved runs permitted their own cleanup and exited normally. Task servers stopped and task temp files removed.
+
+- Completion review reran lint, type checking and the 36 focused component/hook tests. Removed fixed-path screenshot output from the browser spec while retaining layout and interaction assertions. The four card confirmation cases passed again in Chromium, Firefox and mobile Chromium (12 total).
+
+Limits: small isolated confirmation UI fix; no server/save/revision contract changes. Existing persistence browser callers now explicitly confirm deletion, but production build/real-SQLite persistence and broad coverage/full UI suites were not run under the task-based policy. No live inference, Safari/iOS verification, release, push or deployment. The one non-repeating existing drag-order failure remains reported above.

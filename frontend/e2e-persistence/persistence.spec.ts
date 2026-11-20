@@ -124,6 +124,7 @@ test("real database preserves card content, names, moves and order on reload", a
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");
   await expect(page.getByRole("region", { name: "Planned column" })).toBeVisible();
   await page.getByRole("button", { name: `Delete ${title}`, exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("button", { name: "Rename Ideas", exact: true })).toBeVisible();
@@ -139,6 +140,7 @@ test("two tabs reject a stale save and reload canonical state", async ({ page, c
   const other = await context.newPage();
   await open(other);
   await page.getByRole("button", { name: `Delete ${title}`, exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   await other.getByRole("button", { name: "Rename Ideas", exact: true }).click();
   await other.getByRole("textbox", { name: "Column name", exact: true }).fill("Stale name");
@@ -165,6 +167,7 @@ test("controlled assistant proposals commit to the real database and stale propo
   const other = await context.newPage();
   await open(other);
   await page.getByRole("button", { name: `Delete ${title}`, exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   // The controlled plan's revision matches this stale tab, but the real write API rejects it.
   await other.route("**/api/assistant", route => route.fulfill({ json: {

@@ -150,6 +150,7 @@ describe("assistant chat", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: `Delete ${initialBoard[0].cards[0].title}` }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete card" }));
     resolve(Response.json({ message: "Done", operations: [command] }));
     expect(await screen.findByRole("alert")).toHaveTextContent("board changed");
     expect(screen.getAllByRole("article")).toHaveLength(11);
