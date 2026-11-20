@@ -137,7 +137,9 @@ test("creates empty trimmed lists, renames, adds cards, and reaches every list",
   await page.getByRole("button", { name: "Rename Shipped", exact: true }).focus();
   await page.getByRole("button", { name: "Rename Shipped", exact: true }).evaluate(element => element.scrollIntoView({ block: "start" }));
   await page.evaluate(() => window.scrollBy(0, -80));
-  await expect(page.getByRole("region", { name: "Board assistant", exact: true })).toBeInViewport();
+  const assistant = page.getByRole("region", { name: "Board assistant", exact: true });
+  if (page.viewportSize()!.width <= 700) await expect(assistant).toBeHidden();
+  else await expect(assistant).toBeInViewport();
   await page.screenshot({ path: join(tmpdir(), `kanban-issue3-${info.project.name}.png`) });
   await expect(page.locator("nextjs-portal").getByText(/error/i)).toHaveCount(0);
   expect(errors).toEqual([]);
