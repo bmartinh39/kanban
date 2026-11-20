@@ -9,16 +9,13 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:chromium": "playwright test --project=chromium",
     "db:migrate": "node --experimental-strip-types scripts/database.ts migrate",
     "db:backup": "node --experimental-strip-types scripts/database.ts backup",
     "predev": "npm run db:migrate",
     "prestart": "npm run db:migrate",
-    "test:e2e:persistence": "playwright test --config playwright.persistence.config.ts",
-    "test:e2e:persistence:chromium": "playwright test --config playwright.persistence.config.ts --project=chromium"
+    "test:e2e:persistence": "playwright test --config playwright.persistence.config.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

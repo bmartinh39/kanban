@@ -22,13 +22,16 @@ AI needs outbound HTTPS from the Node.js server. If it cannot reach the provider
 
 The assistant can create, edit, and move cards, and create, rename, or delete lists. List deletion always asks for confirmation, including empty lists; Cancel leaves the whole request unapplied. To add cards to a newly created list, send a follow-up request. Providers implement `AssistantProvider.generatePlan`; current OpenAI/OpenRouter protocols live in `app/server/assistant/`. Proposals use the saved board revision and commit atomically. Recent chat and board content go to the selected provider with `store: false`; upstream retention depends on the provider.
 
-For task-based checks and full verification, see [TESTING.md](TESTING.md). During development, from `frontend`:
+Checks, from `frontend`:
 
 ```powershell
 npm run lint
 npm run typecheck
-npm test -- tests/board-state.test.ts
-npm run test:e2e:chromium -- e2e/board.spec.ts --grep "creates cards"
+npm run test:coverage
+npx playwright install chromium firefox
+npm run test:e2e
+npm run build
+npm run test:e2e:persistence
 ```
 
 UI suites use isolated controlled APIs. The persistence suite starts a production server on port 3220 with a temporary real database; build first. Browser coverage includes Chromium, Firefox, and mobile Chromium. Automated tests never call paid inference.

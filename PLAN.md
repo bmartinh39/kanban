@@ -1,20 +1,5 @@
 # Kanban MVP implementation plan
 
-## Testing strategy revision (2026-11-20)
-
-The current policy is in `TESTING.md` and `AGENTS.md`. It supersedes historical full-checklist instructions below; completed entries remain a record of what was actually run.
-
-- [x] Audit scripts, runner configuration, fixtures, suite boundaries and historical verification cost.
-- [x] Define task-to-test selection, risk-based browser configurations, and broad integration/release checks without removing tests or lowering coverage thresholds.
-- [x] Add watch and Chromium-only UI/persistence shortcuts; preserve existing full-suite commands and uncommitted isolation work.
-- [x] Verify unit baseline and new command selection; record execution limits.
-
-Success criteria: routine changes run the affected behavior without coverage/build/full-browser overhead unless needed. Shared contracts, native browser interactions, real SQLite transactions/revisions, and deployment lifecycle checks retain explicit coverage at the appropriate layer.
-
-Verification: `npm test` passed all 239 tests in 14 files in 40.80 seconds. Vitest attributed 53% of tracked time to jsdom environment creation; splitting pure server/state tests into Node is a potential later optimization, not part of this revision. The Chromium persistence alias discovers six tests across two files. The UI smoke was blocked first by the existing port 3210 server, then by its shared Next.js dev lock when tried on port 3235; the existing process was left untouched. No application code or runner environments changed. Full coverage, production build, persistence execution and the three-configuration UI suite are intentionally unnecessary for this documentation/script-selection change. No live inference or user-board writes were performed.
-
-Shortcut verification: `npm run test:watch -- --run tests/board-state.test.ts` passed 19 tests in 8.72 seconds; focused UI discovery selected exactly one Chromium composer scenario. `git diff --check` passed. Persistence validation here was discovery only, not a claim that its six scenarios executed.
-
 ## Follow-up: Assistant list operations
 
 - [x] Add provider-independent create/rename/delete-list proposals, exact target validation, and conflicting-batch rejection.
