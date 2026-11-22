@@ -432,3 +432,15 @@ Verification (2026-11-20):
 - Completion review reran lint, type checking and the 36 focused component/hook tests. Removed fixed-path screenshot output from the browser spec while retaining layout and interaction assertions. The four card confirmation cases passed again in Chromium, Firefox and mobile Chromium (12 total).
 
 Limits: small isolated confirmation UI fix; no server/save/revision contract changes. Existing persistence browser callers now explicitly confirm deletion, but production build/real-SQLite persistence and broad coverage/full UI suites were not run under the task-based policy. No live inference, Safari/iOS verification, release, push or deployment. The one non-repeating existing drag-order failure remains reported above.
+
+## Card handle alignment and delete hover
+
+- [x] Align the drag handle with the first line of the card title and use the same header in the drag preview.
+- [x] Reveal the delete control on card hover or keyboard focus. Keep it visible on devices without hover and retain the card deletion confirmation.
+
+Verification:
+
+- Lint, type checking and the production build passed. The focused `board`, `assistant-chat`, `keyboard-coordinates` and `drag-collision` suites passed all 61 tests.
+- Playwright passed all 84 selected Chromium, Firefox and mobile Chromium cases across the board, drag/reorder, confirmation and assistant flows. The regression checks first-line alignment, pointer exit after hovering the delete icon, pointer cancellation without sticky visibility, Tab and Enter, and touch deletion. An initial mixed pointer/keyboard mobile reorder intermittency passed unchanged in the final run against current `origin/main`. Firefox needed execution outside the sandbox after pages crashed on startup.
+- Browser plugin unavailable. Reviewed Playwright screenshots at 1440 × 1000 and 390 × 664 and checked the rendered page, card content and application errors. The screenshots are in the OS temporary directory. Full UI and coverage suites were outside this focused check.
+- The three focused Chromium persistence scenarios passed against a production build with temporary SQLite storage. They cover confirmed deletion across reload, stale saves across tabs and stale assistant proposals.

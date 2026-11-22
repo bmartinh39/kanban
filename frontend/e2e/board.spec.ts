@@ -134,6 +134,54 @@ test("deletes only selected cards and allows adding to an empty column", async (
   await expect(done.getByText("Drop a card here or add one below.")).toHaveCount(0);
 });
 
+test("aligns the handle with the title and reveals card deletion for the current input", async ({ page }) => {
+  const card = page.getByTestId("card-c1");
+  const title = card.getByRole("heading");
+  const handle = card.getByRole("button", { name: /^Move / });
+  const remove = card.getByRole("button", { name: /^Delete / });
+  await expect(page).toHaveTitle(/Forma/);
+  await expect(title).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const firstLine = await title.evaluate(element => {
+    const range = document.createRange();
+    range.setStart(element.firstChild!, 0);
+    range.setEnd(element.firstChild!, 1);
+    const { left, top, height } = range.getBoundingClientRect();
+    return { left, centerY: top + height / 2 };
+  });
+  const grip = (await handle.boundingBox())!;
+  expect(grip.x + grip.width).toBeLessThan(firstLine.left);
+  expect(Math.abs(grip.y + grip.height / 2 - firstLine.centerY)).toBeLessThan(2);
+
+  const canHover = await page.evaluate(() => matchMedia("(hover: hover)").matches);
+  await expect(remove).toHaveCSS("opacity", canHover ? "0" : "1");
+  if (canHover) {
+    await title.hover();
+    await expect(remove).toHaveCSS("opacity", "1");
+    await remove.hover();
+    await page.mouse.down();
+    await page.mouse.move(1, 1);
+    await page.mouse.up();
+    await expect(remove).toHaveCSS("opacity", "0");
+    await expect(remove).toHaveCSS("pointer-events", "none");
+    await title.hover();
+    await remove.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(remove).toBeFocused();
+    await page.mouse.move(1, 1);
+    await expect(remove).toHaveCSS("opacity", "0");
+    await handle.focus();
+    await page.keyboard.press("Tab");
+    await expect(remove).toBeFocused();
+    await expect(remove).toHaveCSS("opacity", "1");
+    await page.keyboard.press("Enter");
+  } else {
+    await remove.tap();
+  }
+  await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
+  await expect(card).toHaveCount(0);
+});
+
 test("appends by pointer in populated and empty columns and reorders after a second arrival", async ({ page }) => {
   await page.setViewportSize({ width: 1900, height: 1000 });
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
@@ -241,6 +289,7 @@ test("handles a complete workflow and persists changes on reload", async ({ page
   await page.getByRole("button", { name: "Rename Planned", exact: true }).click();
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Next up");
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");
+  await page.getByRole("heading", { name: "Session task", exact: true }).hover();
   await page.getByRole("button", { name: "Delete Session task", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Session task" })).toHaveCount(0);

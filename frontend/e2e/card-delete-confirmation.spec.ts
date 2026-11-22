@@ -13,6 +13,7 @@ test("card deletion requires confirmation, cancels safely and restores focus", a
   const trigger = card.getByRole("button", { name: "Delete Give the homepage a fresh start", exact: true });
   const dialog = page.getByRole("dialog", { name: "Delete this card?" });
   for (const method of ["Cancel", "Close dialog", "Escape", "backdrop"]) {
+    await card.getByRole("heading").hover();
     await trigger.click();
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("Give the homepage a fresh start");
@@ -29,6 +30,7 @@ test("card deletion requires confirmation, cancels safely and restores focus", a
     expect(boardState).toEqual(before);
     expect(saves).toHaveLength(0);
   }
+  await card.getByRole("heading").hover();
   await trigger.click();
   await dialog.evaluate(element => Promise.allSettled(element.getAnimations().map(animation => animation.finished)));
   const bounds = (await dialog.boundingBox())!;
@@ -56,11 +58,14 @@ test("card deletion requires confirmation, cancels safely and restores focus", a
 test("reduced motion card confirmation supports cancellation and explicit deletion", async ({ page, boardState }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  const title = page.getByTestId("card-c1").getByRole("heading");
   const trigger = page.getByRole("button", { name: "Delete Give the homepage a fresh start", exact: true });
+  await title.hover();
   await trigger.click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(boardState.revision).toBe(0);
+  await title.hover();
   await trigger.click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   await expect(page.getByTestId("card-c1")).toHaveCount(0);
@@ -78,6 +83,7 @@ for (const status of [409, 503]) {
       writes++;
       return route.fulfill({ status, json: { error: status === 409 ? "The board changed. Reload and retry." : "Board storage is unavailable." } });
     });
+    await page.getByTestId("card-c1").getByRole("heading").hover();
     await trigger.click();
     await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
     await expect(page.locator(".storage-error").getByRole("alert")).toContainText(status === 409 ? "changed" : "unavailable");

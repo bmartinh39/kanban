@@ -123,6 +123,7 @@ test("real database preserves card content, names, moves and order on reload", a
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Planned");
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");
   await expect(page.getByRole("region", { name: "Planned column" })).toBeVisible();
+  await page.getByRole("heading", { name: title, exact: true }).hover();
   await page.getByRole("button", { name: `Delete ${title}`, exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
@@ -139,6 +140,7 @@ test("two tabs reject a stale save and reload canonical state", async ({ page, c
   await add(page, title);
   const other = await context.newPage();
   await open(other);
+  await page.getByRole("heading", { name: title, exact: true }).hover();
   await page.getByRole("button", { name: `Delete ${title}`, exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
@@ -166,6 +168,7 @@ test("controlled assistant proposals commit to the real database and stale propo
   await expect(page.getByRole("heading", { name: title, exact: true })).toHaveCount(1);
   const other = await context.newPage();
   await open(other);
+  await page.getByRole("heading", { name: title, exact: true }).hover();
   await page.getByRole("button", { name: `Delete ${title}`, exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);

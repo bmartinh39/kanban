@@ -135,6 +135,7 @@ test("assistant rejects a stale reply and keeps the board's manual changes", asy
   await openChat(page);
   await send(page, "Create Stale task in Ideas");
   await expect(page.getByRole("region", { name: "Board assistant", exact: true }).getByRole("status")).toContainText("Thinking");
+  await page.getByRole("heading", { name: "Give the homepage a fresh start", exact: true }).hover();
   await page.getByRole("button", { name: "Delete Give the homepage a fresh start", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   await expect(page.getByRole("article")).toHaveCount(11);
