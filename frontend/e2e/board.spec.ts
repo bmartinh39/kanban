@@ -230,8 +230,10 @@ test("appends by pointer in populated and empty columns and reorders after a sec
   const secondHandle = done.getByTestId("card-c2").getByRole("button", { name: /^Move / });
   await secondHandle.press("Space");
   await expect(secondHandle).toHaveAttribute("aria-pressed", "true");
+  await expect(done).toHaveClass(/is-over/);
   await page.keyboard.press("ArrowUp");
-  await expect.poll(() => done.getByTestId("card-c1").evaluate(card => card.style.transform)).toContain("translate3d");
+  const liveRegion = page.getByRole("status").and(page.locator("[aria-live=assertive]"));
+  await expect(liveRegion).toHaveText("Moving A small moment of delight to Done, position 1 of 2.");
   await page.keyboard.press("Space");
   await expectCardOrder(done, ["c2", "c1"]);
   await expect(secondHandle).toBeFocused();

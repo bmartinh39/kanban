@@ -104,6 +104,7 @@ test("real database preserves card content, names, moves and order on reload", a
   await expect(handle).toHaveAttribute("aria-disabled", "false");
   await handle.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("region", { name: "Ideas column" })).toHaveClass(/is-over/);
   await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("region", { name: "Planned column" })).toHaveClass(/is-over/);
   await page.keyboard.press("ArrowUp");

@@ -456,3 +456,10 @@ Lint, type checking, the production build and all 67 focused unit and component 
 The Browser plugin was unavailable. Playwright screenshots at 1440 × 1000 and 390 × 664 showed the shared left alignment, expected content and no framework error overlay or console errors. Full UI and coverage suites were outside these focused checks.
 
 Three production SQLite scenarios passed in Chromium, covering moves, deletion and reload, stale tab saves, and stale assistant proposals.
+
+### Pre-merge verification
+
+- Lint, type checking and diff checks passed. All 243 tests passed with 98.79% line coverage and 90.71% branch coverage.
+- The full browser run exercised all three browser projects. It recorded 183 passes, two expected skips for the touch-only case, and one intermittent failure in the Chromium mixed pointer and keyboard reorder test. Its trace showed a drop at the original position with no intervening move announcement. The test now waits for the destination column to become the active drop target before pressing Arrow Up and checks the announced destination before dropping.
+- The corrected test passed all nine runs, three each in Chromium, Firefox and mobile Chromium.
+- The production build passed. The full SQLite run recorded 17 passes and one mobile failure after a keyboard pickup that had the same timing issue. The test now waits for its source column to become the active drop target before pressing Arrow Right. The corrected scenario passed all nine runs across the three browser projects.
