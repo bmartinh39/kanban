@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDndContext, useDroppable, useSensor, useSensors, type DragCancelEvent, type DragEndEvent } from "@dnd-kit/core";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDndContext, useDroppable, useSensor, useSensors, type DragCancelEvent, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Check, Columns3, GripVertical, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Columns3, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
 import { columnCoordinates } from "./keyboard-coordinates";
 import { boardCollisionDetection } from "./drag-collision";
 import { createDragAnnouncements, getCardMove } from "./drag-announcements";
@@ -17,15 +17,8 @@ import { prepareActions, type AssistantPlan } from "./assistant-commands";
 
 const emptyBoard: Column[] = [];
 
-function CardContent({ card, handle, deleteButton }: { card: Card; handle: ReactNode; deleteButton?: ReactNode }) {
-  return <>
-    <div className="card-heading">
-      {handle}
-      <h3>{card.title}</h3>
-      {deleteButton}
-    </div>
-    {card.details && <p>{card.details}</p>}
-  </>;
+function CardContent({ card }: { card: Card }) {
+  return <><h3>{card.title}</h3>{card.details && <p>{card.details}</p>}</>;
 }
 
 function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete }: { card: Card; columnId: string; busy: boolean; insertOffset?: number; onDelete: (trigger: HTMLButtonElement) => void }) {
@@ -39,10 +32,9 @@ function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete }: { card: 
     transition,
   };
   return <article ref={setNodeRef} style={style} className={`task-card${isDragging ? " is-dragging" : ""}`} data-testid={`card-${card.id}`}>
-    <CardContent card={card}
-      handle={<button ref={setActivatorNodeRef} className="icon-button drag-handle" {...attributes} {...listeners} aria-label={`Move ${card.title}`}><GripVertical size={16} /></button>}
-      deleteButton={<button className="icon-button delete-button" disabled={busy} onClick={event => onDelete(event.currentTarget)} aria-label={`Delete ${card.title}`}><Trash2 size={14} /></button>}
-    />
+    <CardContent card={card} />
+    <button type="button" ref={setActivatorNodeRef} className="card-drag-surface" {...attributes} {...listeners} aria-label={`Move ${card.title}`} />
+    <button type="button" className="icon-button delete-button" disabled={busy} onClick={event => onDelete(event.currentTarget)} aria-label={`Delete ${card.title}`}><Trash2 size={14} /></button>
   </article>;
 }
 
@@ -176,7 +168,7 @@ export default function Home() {
     const cardId = keyboardDrop.current;
     keyboardDrop.current = null;
     const card = Array.from(boardViewport.current?.querySelectorAll<HTMLElement>("[data-testid]") ?? []).find(element => element.dataset.testid === `card-${cardId}`);
-    card?.querySelector<HTMLButtonElement>(".drag-handle")?.focus();
+    card?.querySelector<HTMLButtonElement>(".card-drag-surface")?.focus();
   }, [board, storage.saving]);
   function closeDialog() {
     setAddingTo(null);
@@ -204,7 +196,11 @@ export default function Home() {
   }
 
   const announcements = useMemo(() => createDragAnnouncements(savedBoard), [savedBoard]);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: columnCoordinates, scrollBehavior: "auto" }));
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: columnCoordinates, scrollBehavior: "auto" }),
+  );
   const activeCard = board.flatMap(column => column.cards).find(card => card.id === activeId);
   const addingColumn = board.find(column => column.id === addingTo);
   if (!storage.snapshot) return <main className="board-loading"><h1>Forma</h1>{storage.loading ? <p role="status">Loading your board...</p> : <><p role="alert">{storage.error}</p><button className="primary-button" onClick={() => void storage.load()}>Retry loading board</button></>}</main>;
@@ -232,7 +228,7 @@ export default function Home() {
         accessibility={{ announcements, screenReaderInstructions: { draggable: "Press Space to pick up a card. Use Up and Down to reorder it within its column. Use Left and Right to move it to another column. Press Space to drop, or Escape to cancel." } }}
       >
         <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} busy={storage.saving || !storage.available} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={(card, trigger) => { addTrigger.current = trigger; setDeletingCard({ card, columnId: column.id }); }} onDeleteList={trigger => { addTrigger.current = trigger; setDeletingList(column); }} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div>{!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}</div>
-        <DragOverlay>{activeCard && <div className="task-card drag-preview"><CardContent card={activeCard} handle={<span className="icon-button" aria-hidden="true"><GripVertical size={16} /></span>} /></div>}</DragOverlay>
+        <DragOverlay>{activeCard && <div className="task-card drag-preview" aria-hidden="true"><CardContent card={activeCard} /></div>}</DragOverlay>
       </DndContext>
       <AssistantChat board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
     </main>

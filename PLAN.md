@@ -444,3 +444,15 @@ Verification:
 - Playwright passed all 84 selected Chromium, Firefox and mobile Chromium cases across the board, drag/reorder, confirmation and assistant flows. The regression checks first-line alignment, pointer exit after hovering the delete icon, pointer cancellation without sticky visibility, Tab and Enter, and touch deletion. An initial mixed pointer/keyboard mobile reorder intermittency passed unchanged in the final run against current `origin/main`. Firefox needed execution outside the sandbox after pages crashed on startup.
 - Browser plugin unavailable. Reviewed Playwright screenshots at 1440 × 1000 and 390 × 664 and checked the rendered page, card content and application errors. The screenshots are in the OS temporary directory. Full UI and coverage suites were outside this focused check.
 - The three focused Chromium persistence scenarios passed against a production build with temporary SQLite storage. They cover confirmed deletion across reload, stale saves across tabs and stale assistant proposals.
+
+### Follow-up in PR #25
+
+- [x] Remove the handles, align title and details at the same left edge, and use the whole card as the drag target with a grab cursor.
+- [x] Reveal the delete button only over its own hover target or with keyboard focus. Keep it visible on touch screens and preserve the confirmation dialog.
+- [x] Preserve touch scrolling with press-and-hold dragging and retain keyboard sorting and focus restoration.
+
+Lint, type checking, the production build and all 67 focused unit and component tests passed. Playwright passed 97 selected cases in Chromium, Firefox and mobile Chromium. The touch gesture case runs only in mobile Chromium. It verifies that swiping over a card scrolls and holding it first enables drag and drop. Desktop checks confirm the grab cursor and that the delete icon hides when moving from its button to another part of the same card, even after mouse cancellation. Keyboard checks cover sorting, focus restoration and delete confirmation.
+
+The Browser plugin was unavailable. Playwright screenshots at 1440 × 1000 and 390 × 664 showed the shared left alignment, expected content and no framework error overlay or console errors. Full UI and coverage suites were outside these focused checks.
+
+Three production SQLite scenarios passed in Chromium, covering moves, deletion and reload, stale tab saves, and stale assistant proposals.
