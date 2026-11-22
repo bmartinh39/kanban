@@ -122,7 +122,6 @@ test("renames a column, rejects a blank name, and cancels edits", async ({ page 
 test("deletes only selected cards and allows adding to an empty column", async ({ page }) => {
   const done = page.getByRole("region", { name: "Done column", exact: true });
   for (const card of ["c11", "c12"]) {
-    await page.getByTestId(`card-${card}`).hover();
     await page.getByTestId(`card-${card}`).getByRole("button", { name: /^Delete / }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   }
@@ -134,6 +133,74 @@ test("deletes only selected cards and allows adding to an empty column", async (
   await expect(done.getByText("Drop a card here or add one below.")).toHaveCount(0);
 });
 
+test("aligns card text and reveals deletion only at its own hover target or keyboard focus", async ({ page }) => {
+  const card = page.getByTestId("card-c1");
+  const title = card.getByRole("heading");
+  const surface = card.getByRole("button", { name: /^Move / });
+  const remove = card.getByRole("button", { name: /^Delete / });
+  await expect(page).toHaveTitle(/Forma/);
+  await expect(title).toBeVisible();
+  await expect(surface.locator("svg")).toHaveCount(0);
+  const titleBounds = (await title.boundingBox())!;
+  const detailsBounds = (await card.locator("p").boundingBox())!;
+  expect(titleBounds.x).toBe(detailsBounds.x);
+
+  const canHover = await page.evaluate(() => matchMedia("(hover: hover)").matches);
+  await expect(remove).toHaveCSS("opacity", canHover ? "0" : "1");
+  if (canHover) {
+    await surface.hover();
+    await expect(surface).toHaveCSS("cursor", "grab");
+    await expect(remove).toHaveCSS("opacity", "0");
+    await remove.hover();
+    await expect(remove).toHaveCSS("opacity", "1");
+    await surface.hover();
+    await expect(remove).toHaveCSS("opacity", "0");
+    await remove.click();
+    await expect(surface).not.toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(remove).toBeFocused();
+    await surface.hover();
+    await expect(remove).toHaveCSS("opacity", "0");
+    await surface.focus();
+    await page.keyboard.press("Tab");
+    await expect(remove).toBeFocused();
+    await expect(remove).toHaveCSS("opacity", "1");
+    await page.keyboard.press("Enter");
+  } else {
+    await remove.tap();
+  }
+  await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
+  await expect(card).toHaveCount(0);
+});
+
+test("touch swipes scroll the board and a held card can be dragged", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile", "Uses Chromium touch input");
+  await page.setViewportSize({ width: 390, height: 900 });
+  const surface = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  const sensor = await page.context().newCDPSession(page);
+  const { x, y, width, height } = (await surface.boundingBox())!;
+  const center = { x: x + width / 2, y: y + height / 2 };
+  await sensor.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [center] });
+  for (const distance of [25, 55, 90, 120]) {
+    await sensor.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: center.x, y: center.y - distance }] });
+  }
+  await sensor.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(20);
+  await expect(surface).not.toHaveAttribute("aria-pressed", "true");
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  const second = (await page.getByTestId("card-c2").boundingBox())!;
+  const target = { x: center.x, y: second.y + second.height / 2 };
+  const frame = await page.locator(".assistant-panel").boundingBox();
+  expect(target.y).toBeLessThan(frame!.y);
+  await sensor.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [center] });
+  await expect(surface).toHaveAttribute("aria-pressed", "true");
+  await sensor.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [target] });
+  await expect(page.locator(".drag-preview")).toBeVisible();
+  await sensor.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await expectCardOrder(page.getByRole("region", { name: "Ideas column", exact: true }), ["c2", "c1", "c3"]);
+});
+
 test("appends by pointer in populated and empty columns and reorders after a second arrival", async ({ page }) => {
   await page.setViewportSize({ width: 1900, height: 1000 });
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
@@ -141,7 +208,6 @@ test("appends by pointer in populated and empty columns and reorders after a sec
   await pointerMove(page, "c1", "Planned");
   await expectCardOrder(planned, ["c4", "c5", "c1"]);
   for (const card of ["c11", "c12"]) {
-    await page.getByTestId(`card-${card}`).hover();
     await page.getByTestId(`card-${card}`).getByRole("button", { name: /^Delete / }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
   }
@@ -164,8 +230,10 @@ test("appends by pointer in populated and empty columns and reorders after a sec
   const secondHandle = done.getByTestId("card-c2").getByRole("button", { name: /^Move / });
   await secondHandle.press("Space");
   await expect(secondHandle).toHaveAttribute("aria-pressed", "true");
+  await expect(done).toHaveClass(/is-over/);
   await page.keyboard.press("ArrowUp");
-  await expect.poll(() => done.getByTestId("card-c1").evaluate(card => card.style.transform)).toContain("translate3d");
+  const liveRegion = page.getByRole("status").and(page.locator("[aria-live=assertive]"));
+  await expect(liveRegion).toHaveText("Moving A small moment of delight to Done, position 1 of 2.");
   await page.keyboard.press("Space");
   await expectCardOrder(done, ["c2", "c1"]);
   await expect(secondHandle).toBeFocused();

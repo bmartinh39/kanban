@@ -432,3 +432,34 @@ Verification (2026-11-20):
 - Completion review reran lint, type checking and the 36 focused component/hook tests. Removed fixed-path screenshot output from the browser spec while retaining layout and interaction assertions. The four card confirmation cases passed again in Chromium, Firefox and mobile Chromium (12 total).
 
 Limits: small isolated confirmation UI fix; no server/save/revision contract changes. Existing persistence browser callers now explicitly confirm deletion, but production build/real-SQLite persistence and broad coverage/full UI suites were not run under the task-based policy. No live inference, Safari/iOS verification, release, push or deployment. The one non-repeating existing drag-order failure remains reported above.
+
+## Card handle alignment and delete hover
+
+- [x] Align the drag handle with the first line of the card title and use the same header in the drag preview.
+- [x] Reveal the delete control on card hover or keyboard focus. Keep it visible on devices without hover and retain the card deletion confirmation.
+
+Verification:
+
+- Lint, type checking and the production build passed. The focused `board`, `assistant-chat`, `keyboard-coordinates` and `drag-collision` suites passed all 61 tests.
+- Playwright passed all 84 selected Chromium, Firefox and mobile Chromium cases across the board, drag/reorder, confirmation and assistant flows. The regression checks first-line alignment, pointer exit after hovering the delete icon, pointer cancellation without sticky visibility, Tab and Enter, and touch deletion. An initial mixed pointer/keyboard mobile reorder intermittency passed unchanged in the final run against current `origin/main`. Firefox needed execution outside the sandbox after pages crashed on startup.
+- Browser plugin unavailable. Reviewed Playwright screenshots at 1440 × 1000 and 390 × 664 and checked the rendered page, card content and application errors. The screenshots are in the OS temporary directory. Full UI and coverage suites were outside this focused check.
+- The three focused Chromium persistence scenarios passed against a production build with temporary SQLite storage. They cover confirmed deletion across reload, stale saves across tabs and stale assistant proposals.
+
+### Follow-up in PR #25
+
+- [x] Remove the handles, align title and details at the same left edge, and use the whole card as the drag target with a grab cursor.
+- [x] Reveal the delete button only over its own hover target or with keyboard focus. Keep it visible on touch screens and preserve the confirmation dialog.
+- [x] Preserve touch scrolling with press-and-hold dragging and retain keyboard sorting and focus restoration.
+
+Lint, type checking, the production build and all 67 focused unit and component tests passed. Playwright passed 97 selected cases in Chromium, Firefox and mobile Chromium. The touch gesture case runs only in mobile Chromium. It verifies that swiping over a card scrolls and holding it first enables drag and drop. Desktop checks confirm the grab cursor and that the delete icon hides when moving from its button to another part of the same card, even after mouse cancellation. Keyboard checks cover sorting, focus restoration and delete confirmation.
+
+The Browser plugin was unavailable. Playwright screenshots at 1440 × 1000 and 390 × 664 showed the shared left alignment, expected content and no framework error overlay or console errors. Full UI and coverage suites were outside these focused checks.
+
+Three production SQLite scenarios passed in Chromium, covering moves, deletion and reload, stale tab saves, and stale assistant proposals.
+
+### Pre-merge verification
+
+- Lint, type checking and diff checks passed. All 243 tests passed with 98.79% line coverage and 90.71% branch coverage.
+- The full browser run exercised all three browser projects. It recorded 183 passes, two expected skips for the touch-only case, and one intermittent failure in the Chromium mixed pointer and keyboard reorder test. Its trace showed a drop at the original position with no intervening move announcement. The test now waits for the destination column to become the active drop target before pressing Arrow Up and checks the announced destination before dropping.
+- The corrected test passed all nine runs, three each in Chromium, Firefox and mobile Chromium.
+- The production build passed. The full SQLite run recorded 17 passes and one mobile failure after a keyboard pickup that had the same timing issue. The test now waits for its source column to become the active drop target before pressing Arrow Right. The corrected scenario passed all nine runs across the three browser projects.
