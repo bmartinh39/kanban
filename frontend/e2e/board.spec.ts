@@ -133,38 +133,54 @@ test("deletes only selected cards and allows adding to an empty column", async (
   await expect(done.getByText("Drop a card here or add one below.")).toHaveCount(0);
 });
 
-test("aligns card text and reveals deletion only at its own hover target or keyboard focus", async ({ page }) => {
+test("keeps a flush card strip and reveals deletion on hover, focus, and touch", async ({ page }) => {
   const card = page.getByTestId("card-c1");
   const title = card.getByRole("heading");
-  const surface = card.getByRole("button", { name: /^Move / });
+  const handle = card.getByRole("button", { name: /^Move / });
+  const priority = card.getByRole("button", { name: /^Priority for / });
   const remove = card.getByRole("button", { name: /^Delete / });
+  const trash = remove.locator("svg");
   await expect(page).toHaveTitle(/Forma/);
   await expect(title).toBeVisible();
-  await expect(surface.locator("svg")).toHaveCount(0);
+  await expect(handle.locator("svg")).toHaveCount(0);
+  const cardBounds = (await card.boundingBox())!;
+  const [left, middle, right] = await Promise.all([handle.boundingBox(), priority.boundingBox(), remove.boundingBox()]);
+  expect(left).toMatchObject({ x: cardBounds.x, y: cardBounds.y });
+  expect(middle).toMatchObject({ y: left!.y, height: left!.height });
+  expect(right).toMatchObject({ y: left!.y, height: left!.height, width: left!.width });
+  expect(middle!.x).toBeCloseTo(left!.x + left!.width);
+  expect(right!.x).toBeCloseTo(middle!.x + middle!.width);
+  expect(right!.x + right!.width).toBeCloseTo(cardBounds.x + cardBounds.width);
   const titleBounds = (await title.boundingBox())!;
   const detailsBounds = (await card.locator("p").boundingBox())!;
   expect(titleBounds.x).toBe(detailsBounds.x);
 
-  const canHover = await page.evaluate(() => matchMedia("(hover: hover)").matches);
-  await expect(remove).toHaveCSS("opacity", canHover ? "0" : "1");
+  const canHover = await page.evaluate(() => matchMedia("(hover: hover) and (pointer: fine)").matches);
+  await expect(trash).toHaveCSS("opacity", canHover ? "0" : "1");
   if (canHover) {
-    await surface.hover();
-    await expect(surface).toHaveCSS("cursor", "grab");
-    await expect(remove).toHaveCSS("opacity", "0");
+    const restingHandle = await handle.evaluate(element => getComputedStyle(element).backgroundImage);
+    const restingRemove = await remove.evaluate(element => getComputedStyle(element).backgroundImage);
+    await handle.hover();
+    await expect(handle).toHaveCSS("cursor", "grab");
+    await expect(handle).not.toHaveCSS("background-image", restingHandle);
+    await expect(trash).toHaveCSS("opacity", "1");
+    await title.hover();
+    await page.mouse.down();
+    await page.mouse.move(titleBounds.x + titleBounds.width / 2 + 10, titleBounds.y + titleBounds.height / 2);
+    await expect(handle).not.toHaveAttribute("aria-pressed", "true");
+    await page.mouse.up();
     await remove.hover();
-    await expect(remove).toHaveCSS("opacity", "1");
-    await surface.hover();
-    await expect(remove).toHaveCSS("opacity", "0");
+    await expect(remove).not.toHaveCSS("background-image", restingRemove);
     await remove.click();
-    await expect(surface).not.toHaveAttribute("aria-pressed", "true");
+    await expect(handle).not.toHaveAttribute("aria-pressed", "true");
     await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(remove).toBeFocused();
-    await surface.hover();
-    await expect(remove).toHaveCSS("opacity", "0");
-    await surface.focus();
+    await page.mouse.move(0, 0);
+    await page.keyboard.press("Shift+Tab");
+    await expect(priority).toBeFocused();
+    await expect(trash).toHaveCSS("opacity", "1");
     await page.keyboard.press("Tab");
     await expect(remove).toBeFocused();
-    await expect(remove).toHaveCSS("opacity", "1");
     await page.keyboard.press("Enter");
   } else {
     await remove.tap();
@@ -173,7 +189,72 @@ test("aligns card text and reveals deletion only at its own hover target or keyb
   await expect(card).toHaveCount(0);
 });
 
-test("touch swipes scroll the board and a held card can be dragged", async ({ page }, info) => {
+test("opens priority independently of dragging and applies the chosen tint before saving", async ({ page, boardState }, info) => {
+  const card = page.getByTestId("card-c1");
+  const priority = card.getByRole("button", { name: /^Priority for / });
+  const handle = card.getByRole("button", { name: /^Move / });
+  const menu = page.getByRole("menu", { name: /^Priority for / });
+  const initialBounds = await card.boundingBox();
+  await expect(priority).toHaveAccessibleName(/: None$/);
+  if (info.project.name === "mobile") {
+    await expect(priority.locator("svg")).toHaveCSS("opacity", "1");
+    await priority.tap();
+  } else {
+    const resting = await priority.evaluate(element => getComputedStyle(element).backgroundImage);
+    await expect(priority.locator("svg")).toHaveCSS("opacity", "0");
+    await priority.hover();
+    await expect(priority).not.toHaveCSS("background-image", resting);
+    await expect(priority.locator("svg")).toHaveCSS("opacity", "1");
+    await priority.click();
+  }
+
+  await expect(menu.getByRole("menuitemradio")).toHaveText(["Low", "Normal", "Medium", "High", "Urgent", "Critical"]);
+  await expect(menu.getByRole("menuitemradio", { name: "Low" })).toBeFocused();
+  const anchorBounds = (await priority.boundingBox())!;
+  const menuBounds = (await menu.boundingBox())!;
+  expect(menuBounds.y).toBe(anchorBounds.y + anchorBounds.height + 5);
+  expect(menuBounds.x).toBeGreaterThanOrEqual(0);
+  expect(menuBounds.x + menuBounds.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/board/actions", async route => { await pending; await route.fallback(); });
+  try {
+    if (info.project.name === "mobile") {
+      await menu.getByRole("menuitemradio", { name: "Medium" }).tap();
+    } else {
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("ArrowDown");
+      await expect(menu.getByRole("menuitemradio", { name: "Medium" })).toBeFocused();
+      await page.keyboard.press("Enter");
+    }
+    await expect(menu).toBeHidden();
+    await expect(priority).toHaveAttribute("data-priority", "medium");
+    await expect(priority).toBeFocused();
+    await expect(handle).not.toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".drag-preview")).toHaveCount(0);
+    expect(await card.boundingBox()).toEqual(initialBounds);
+    expect(boardState.revision).toBe(0);
+  } finally { release(); }
+  await expect(page.locator(".save-status")).toHaveText("Saved");
+  await priority.press("Space");
+  await expect(menu.getByRole("menuitemradio", { name: "Medium", checked: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(priority).toBeFocused();
+  expect(boardState.revision).toBe(1);
+  if (info.project.name !== "mobile") {
+    await page.setViewportSize({ width: 1900, height: 430 });
+    const edgeCard = page.getByTestId("card-c12");
+    await edgeCard.getByRole("button", { name: /^Priority for / }).click();
+    await expect(menu).toBeInViewport({ ratio: 1 });
+    await page.keyboard.press("Tab");
+    await expect(menu).toBeHidden();
+    await expect(edgeCard.getByRole("button", { name: /^Delete / })).toBeFocused();
+  }
+});
+
+test("touch swipes scroll the board and holding the drag corner moves a card", async ({ page }, info) => {
   test.skip(info.project.name !== "mobile", "Uses Chromium touch input");
   await page.setViewportSize({ width: 390, height: 900 });
   const surface = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });

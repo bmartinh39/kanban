@@ -12,7 +12,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. Drag a card by its surface, or press and hold before dragging on touch screens. With a card focused, use Space to pick it up or drop it, Left/Right to change columns, Up/Down to choose a position, and Escape to cancel. Changes save automatically. Conflicting saves reload the latest board for review. Other tabs refresh on reload.
+Open http://localhost:3000. Drag a card by its top-left corner, or press and hold that corner before dragging on touch screens. With the corner focused, use Space to pick up or drop the card, Left/Right to change columns, Up/Down to choose a position, and Escape to cancel. Use the center of the strip to set priority and the right corner to delete the card. Changes save automatically. Conflicting saves reload the latest board for review. Other tabs refresh on reload.
 
 `npm run dev` and `npm start` run migrations and seed dummy data once. `DATABASE_PATH` defaults to `./data/kanban.sqlite`. An empty saved board is never reseeded. Keep database files out of Git.
 

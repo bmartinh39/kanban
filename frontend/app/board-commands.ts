@@ -1,4 +1,4 @@
-import { boardReducer, type Action, type Column } from "./board-state";
+import { boardReducer, cardPriorities, type Action, type Column } from "./board-state";
 
 export type BoardCommand = Exclude<Action, { type: "assistant" }>;
 export type BoardSnapshot = { columns: Column[]; revision: number };
@@ -8,6 +8,7 @@ export class InvalidCommand extends Error {}
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const text = (value: unknown): value is string => typeof value === "string" && value.length <= 20_000;
 const id = (value: unknown): value is string => text(value) && value.length > 0 && value.length <= 100;
+const validPriority = (value: unknown) => cardPriorities.some(priority => priority === value);
 export const validRevision = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 
 export function parseCommands(value: unknown): BoardCommand[] {
@@ -16,8 +17,10 @@ export function parseCommands(value: unknown): BoardCommand[] {
     if (!record(action)) throw new InvalidCommand("Invalid board action.");
     const valid = action.type === "create-list" ? id(action.listId) && text(action.name)
       : action.type === "delete-list" ? id(action.columnId)
-      : action.type === "add" ? id(action.columnId) && record(action.card) && id(action.card.id) && text(action.card.title) && text(action.card.details)
+      : action.type === "add" ? id(action.columnId) && record(action.card) && id(action.card.id) && text(action.card.title) && text(action.card.details) &&
+        (action.card.priority === undefined || validPriority(action.card.priority))
       : action.type === "delete" ? id(action.cardId)
+      : action.type === "set-priority" ? id(action.cardId) && validPriority(action.priority)
       : action.type === "rename" ? id(action.columnId) && text(action.name)
       : action.type === "edit" ? id(action.cardId) && (action.title !== undefined || action.details !== undefined) &&
         (action.title === undefined || text(action.title)) && (action.details === undefined || text(action.details))

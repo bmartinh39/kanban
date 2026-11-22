@@ -71,8 +71,20 @@ describe("SQLite persistence", () => {
     expect(db.pragma("journal_mode", { simple: true })).toBe("wal");
     expect(db.pragma("foreign_keys", { simple: true })).toBe(1);
     expect(db.pragma("synchronous", { simple: true })).toBe(2);
-    expect(db.pragma("user_version", { simple: true })).toBe(1);
+    expect(db.pragma("user_version", { simple: true })).toBe(2);
     expect(db.pragma("busy_timeout", { simple: true })).toBe(5000);
+  });
+  it("upgrades a saved board to support optional priorities without changing its revision or cards", () => {
+    const existing = boardRepository(db).mutate(0, [{ type: "edit", cardId: "c1", title: "Existing card" }]);
+    db.exec("ALTER TABLE cards DROP COLUMN priority; PRAGMA user_version = 1;");
+    db.close(); db = openDatabase(join(folder, "board.sqlite"), true);
+    const repo = boardRepository(db);
+    expect(repo.read()).toEqual(existing);
+    const priority = { type: "set-priority", cardId: "c1", priority: "medium" };
+    const saved = repo.mutate(existing.revision, [priority]);
+    expect(saved.columns[0].cards[0]).toEqual({ ...existing.columns[0].cards[0], priority: "medium" });
+    expect(repo.mutate(saved.revision, [priority])).toEqual(saved);
+    expect(() => db.prepare("UPDATE cards SET priority = 'other' WHERE id = 'c1'").run()).toThrow("CHECK");
   });
   it("persists rename, creation, edits, ordering, cross-column insertion, and deletion on reopen", () => {
     const repo = boardRepository(db);
@@ -122,7 +134,7 @@ describe("SQLite persistence", () => {
     expect(repo.mutate(0, [{ type: "move", cardId: "c1", columnId: "ideas", index: 0 }]).revision).toBe(0);
   });
   it("enforces relational and nonblank constraints directly in SQLite", () => {
-    expect(() => db.prepare("INSERT INTO cards VALUES ('bad', 'missing', 'Title', '', 0)").run()).toThrow("FOREIGN KEY");
+    expect(() => db.prepare("INSERT INTO cards (id, column_id, title, details, position) VALUES ('bad', 'missing', 'Title', '', 0)").run()).toThrow("FOREIGN KEY");
     expect(() => db.prepare("UPDATE cards SET title = ' ' WHERE id = 'c1'").run()).toThrow("CHECK");
     expect(() => db.prepare("UPDATE columns SET position = -1 WHERE id = 'ideas'").run()).toThrow("CHECK");
   });
@@ -137,7 +149,7 @@ describe("SQLite persistence", () => {
   });
   it("refuses unmigrated and future schemas without damaging data", () => {
     expect(() => openDatabase(join(folder, "fresh.sqlite"))).toThrow("not initialized");
-    db.pragma("user_version = 2");
+    db.pragma("user_version = 3");
     expect(() => openDatabase(join(folder, "board.sqlite"), true)).toThrow("newer");
     expect(db.prepare("SELECT count(*) AS count FROM cards").get()).toEqual({ count: 12 });
   });

@@ -1,4 +1,6 @@
-export type Card = { id: string; title: string; details: string };
+export const cardPriorities = ["low", "normal", "medium", "high", "urgent", "critical"] as const;
+export type CardPriority = typeof cardPriorities[number];
+export type Card = { id: string; title: string; details: string; priority?: CardPriority };
 export type Column = { id: string; name: string; cards: Card[] };
 export type Action =
   | { type: "create-list"; listId: string; name: string }
@@ -6,6 +8,7 @@ export type Action =
   | { type: "add"; columnId: string; card: Card }
   | { type: "delete"; cardId: string }
   | { type: "edit"; cardId: string; title?: string; details?: string }
+  | { type: "set-priority"; cardId: string; priority: CardPriority }
   | { type: "assistant"; snapshot: Column[]; actions: Action[] }
   | { type: "rename"; columnId: string; name: string }
   | { type: "move"; cardId: string; columnId: string; index?: number };
@@ -54,6 +57,10 @@ export function boardReducer(board: Column[], action: Action): Column[] {
       if (action.title !== undefined && !action.title.trim()) return board;
       return board.map(column => ({ ...column, cards: column.cards.map(card => card.id === action.cardId
         ? { ...card, title: action.title?.trim() ?? card.title, details: action.details?.trim() ?? card.details }
+        : card) }));
+    case "set-priority":
+      return board.map(column => ({ ...column, cards: column.cards.map(card => card.id === action.cardId
+        ? { ...card, priority: action.priority }
         : card) }));
     case "rename":
       if (!action.name.trim()) return board;

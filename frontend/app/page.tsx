@@ -7,21 +7,26 @@ import { Check, Columns3, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-rea
 import { columnCoordinates } from "./keyboard-coordinates";
 import { boardCollisionDetection } from "./drag-collision";
 import { createDragAnnouncements, getCardMove } from "./drag-announcements";
-import { boardReducer, type Card, type Column } from "./board-state";
+import { boardReducer, type Card, type CardPriority, type Column } from "./board-state";
 import { type BoardCommand } from "./board-commands";
 import { useBoard } from "./use-board";
 import { AssistantChat } from "./assistant-chat";
 import { DeleteCardDialog, DeleteListDialog } from "./delete-list-dialog";
 import { prepareActions, type AssistantPlan } from "./assistant-commands";
+import { CardPriorityButton } from "./card-priority-button";
 
 
 const emptyBoard: Column[] = [];
 
 function CardContent({ card }: { card: Card }) {
-  return <><h3>{card.title}</h3>{card.details && <p>{card.details}</p>}</>;
+  return <div className="card-content"><h3>{card.title}</h3>{card.details && <p>{card.details}</p>}</div>;
 }
 
-function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete }: { card: Card; columnId: string; busy: boolean; insertOffset?: number; onDelete: (trigger: HTMLButtonElement) => void }) {
+function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete, onPriority }: {
+  card: Card; columnId: string; busy: boolean; insertOffset?: number;
+  onDelete: (trigger: HTMLButtonElement) => void;
+  onPriority: (priority: CardPriority) => Promise<void>;
+}) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging, transform, transition } = useSortable({
     id: card.id,
     disabled: busy,
@@ -32,13 +37,25 @@ function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete }: { card: 
     transition,
   };
   return <article ref={setNodeRef} style={style} className={`task-card${isDragging ? " is-dragging" : ""}`} data-testid={`card-${card.id}`}>
+    <div className="card-strip">
+      <button type="button" ref={setActivatorNodeRef} className="drag-handle" {...attributes} {...listeners} aria-label={`Move ${card.title}`} />
+      <CardPriorityButton card={card} busy={busy} onChange={onPriority} />
+      <button type="button" className="delete-button" disabled={busy} onClick={event => onDelete(event.currentTarget)} aria-label={`Delete ${card.title}`}>
+        <Trash2 size={14} aria-hidden="true" />
+      </button>
+    </div>
     <CardContent card={card} />
-    <button type="button" ref={setActivatorNodeRef} className="card-drag-surface" {...attributes} {...listeners} aria-label={`Move ${card.title}`} />
-    <button type="button" className="icon-button delete-button" disabled={busy} onClick={event => onDelete(event.currentTarget)} aria-label={`Delete ${card.title}`}><Trash2 size={14} /></button>
   </article>;
 }
 
-function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRename }: { column: Column; index: number; busy: boolean; onAdd: (trigger: HTMLButtonElement) => void; onDelete: (card: Card, trigger: HTMLButtonElement) => void; onDeleteList: (trigger: HTMLButtonElement) => void; onRename: (name: string) => void }) {
+function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRename, onPriority }: {
+  column: Column; index: number; busy: boolean;
+  onAdd: (trigger: HTMLButtonElement) => void;
+  onDelete: (card: Card, trigger: HTMLButtonElement) => void;
+  onDeleteList: (trigger: HTMLButtonElement) => void;
+  onRename: (name: string) => void;
+  onPriority: (cardId: string, priority: CardPriority) => Promise<void>;
+}) {
   const { setNodeRef } = useDroppable({ id: column.id, data: { type: "column", columnId: column.id, index } });
   const { active, activeNodeRect, over, droppableRects } = useDndContext();
   const isOver = over?.data.current?.columnId === column.id;
@@ -70,7 +87,15 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
     <div className="card-stack" style={{ paddingBottom: gapHeight }}>
       {inserting && <div className="insertion-preview" aria-hidden="true" style={{ top: insertionTop, height: gapHeight - 11 }} />}
       <SortableContext items={column.cards.map(card => card.id)} strategy={verticalListSortingStrategy}>
-        {column.cards.map((card, cardIndex) => <TaskCard key={card.id} card={card} columnId={column.id} busy={busy} insertOffset={inserting && cardIndex >= insertionIndex ? gapHeight : 0} onDelete={trigger => onDelete(card, trigger)} />)}
+        {column.cards.map((card, cardIndex) => <TaskCard
+          key={card.id}
+          card={card}
+          columnId={column.id}
+          busy={busy}
+          insertOffset={inserting && cardIndex >= insertionIndex ? gapHeight : 0}
+          onDelete={trigger => onDelete(card, trigger)}
+          onPriority={priority => onPriority(card.id, priority)}
+        />)}
       </SortableContext>
       {!column.cards.length && !inserting && <div className="empty-column"><Columns3 size={23} /><p>Drop a card here or add one below.</p></div>}
     </div>
@@ -117,7 +142,7 @@ export default function Home() {
   const savedBoard = storage.snapshot?.columns ?? emptyBoard;
   const board = dropPreview ?? savedBoard;
   function dispatch(action: BoardCommand) {
-    void storage.save([action]).catch(() => {});
+    return storage.save([action]).catch(() => {});
   }
   async function applyAssistant(snapshot: Column[], plan: AssistantPlan, revision: number) {
     if (storage.current.current?.columns !== snapshot) throw new Error("The board changed while I was thinking. Send your request again to use the latest board. No changes were made.");
@@ -168,7 +193,7 @@ export default function Home() {
     const cardId = keyboardDrop.current;
     keyboardDrop.current = null;
     const card = Array.from(boardViewport.current?.querySelectorAll<HTMLElement>("[data-testid]") ?? []).find(element => element.dataset.testid === `card-${cardId}`);
-    card?.querySelector<HTMLButtonElement>(".card-drag-surface")?.focus();
+    card?.querySelector<HTMLButtonElement>(".drag-handle")?.focus();
   }, [board, storage.saving]);
   function closeDialog() {
     setAddingTo(null);
@@ -227,8 +252,28 @@ export default function Home() {
         onDragEnd={handleDragEnd}
         accessibility={{ announcements, screenReaderInstructions: { draggable: "Press Space to pick up a card. Use Up and Down to reorder it within its column. Use Left and Right to move it to another column. Press Space to drop, or Escape to cancel." } }}
       >
-        <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}><div className="board-grid">{board.map((column, index) => <BoardColumn key={column.id} column={column} index={index} busy={storage.saving || !storage.available} onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }} onDelete={(card, trigger) => { addTrigger.current = trigger; setDeletingCard({ card, columnId: column.id }); }} onDeleteList={trigger => { addTrigger.current = trigger; setDeletingList(column); }} onRename={name => dispatch({ type: "rename", columnId: column.id, name })} />)}</div>{!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}</div>
-        <DragOverlay>{activeCard && <div className="task-card drag-preview" aria-hidden="true"><CardContent card={activeCard} /></div>}</DragOverlay>
+        <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}>
+          <div className="board-grid">{board.map((column, index) => <BoardColumn
+            key={column.id}
+            column={column}
+            index={index}
+            busy={storage.saving || !storage.available}
+            onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }}
+            onDelete={(card, trigger) => { addTrigger.current = trigger; setDeletingCard({ card, columnId: column.id }); }}
+            onDeleteList={trigger => { addTrigger.current = trigger; setDeletingList(column); }}
+            onRename={name => dispatch({ type: "rename", columnId: column.id, name })}
+            onPriority={(cardId, priority) => dispatch({ type: "set-priority", cardId, priority })}
+          />)}</div>
+          {!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}
+        </div>
+        <DragOverlay>{activeCard && <div className="task-card drag-preview" aria-hidden="true">
+          <div className="card-strip">
+            <span className="drag-handle" />
+            <span className="priority-bar" data-priority={activeCard.priority} />
+            <span className="delete-button" />
+          </div>
+          <CardContent card={activeCard} />
+        </div>}</DragOverlay>
       </DndContext>
       <AssistantChat board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
     </main>
