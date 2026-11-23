@@ -69,15 +69,15 @@ h1, h2 { font-family: var(--heading-font); }
 .drag-handle:hover, .drag-handle:focus-visible, .drag-preview .drag-handle { background: linear-gradient(125deg, #c0ffe7ed, #7af3f5cc); }
 .drag-handle:active { cursor: grabbing; }
 .drag-handle[aria-disabled="true"], .priority-bar[aria-disabled="true"] { cursor: default; }
-[data-priority="low"] { --priority-color: #a8fad0; }
-[data-priority="normal"] { --priority-color: #a4dcff; }
-[data-priority="medium"] { --priority-color: #ffd47b; }
-[data-priority="high"] { --priority-color: #ffb97f; }
-[data-priority="urgent"] { --priority-color: #ffa0b4; }
-[data-priority="critical"] { --priority-color: #cda5ff; }
+[data-priority="low"] { --priority-color: #6bfbb1; }
+[data-priority="normal"] { --priority-color: #4dbbff; }
+[data-priority="medium"] { --priority-color: #fbca69; }
+[data-priority="high"] { --priority-color: #fb8b2f; }
+[data-priority="urgent"] { --priority-color: #f84169; }
+[data-priority="critical"] { --priority-color: #a65eff; }
 .priority-bar {
   --priority-tint: var(--priority-color, #c3cddd);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--priority-tint) 56%, transparent), color-mix(in srgb, var(--priority-tint) 30%, transparent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--priority-tint) 56%, transparent), color-mix(in srgb, var(--priority-tint) 70%, transparent));
   color: var(--text);
 }
 .priority-bar:is(:hover, :focus-visible, [aria-expanded="true"]) {
