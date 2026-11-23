@@ -517,3 +517,13 @@ Limits: focused PR follow-up; broad coverage and the full UI/persistence matrice
 - Playwright passed 25 selected UI cases across desktop Chromium, Firefox, and mobile Chromium. The touch drag test runs only in the mobile project. Testing caught a one-pixel overflow from the original strip styling and a subpixel rounding difference in the geometry assertion. Both passed after correction. Firefox required access outside the filesystem sandbox to create its temporary profile.
 - All six Chromium production persistence cases passed against temporary SQLite. The priority, move, and reload case also passed in Firefox and mobile Chromium. The database tests cover migration of an existing board, invalid priorities, and an unchanged revision when setting the same value again.
 - The Browser extension was unavailable, and the GitHub image request returned HTTP 403. Playwright screenshots at 1440 × 1000 and 390 × 664 verified the documented resting, hover, and open states at board scale with no framework overlays or browser errors. The broad coverage and UI suites were outside the focused checks.
+
+## Issue #29 list height
+
+- [x] Size populated lists to their cards and the Add a card button at all breakpoints.
+- [x] Preserve the empty drop area during the insertion preview.
+- [x] Check responsive layout, scrolling, and pointer, keyboard, and touch drag behavior.
+
+Playwright was used because the Browser plugin was unavailable. 31 focused browser cases passed across the runs. Scenarios in `board.spec.ts`, `lists.spec.ts`, and `delete-scroll.spec.ts` covered desktop Chromium, Firefox, and mobile Chromium. Firefox needed to run outside the sandbox to start. The touch scenario used the hidden mobile assistant panel as a viewport boundary. It now checks the viewport height. Desktop and mobile screenshots showed the list panels ending immediately below their add buttons.
+
+`npm run lint` completed with the existing unused `GripVertical` warning. `npm run typecheck` and `git diff --check` passed. Full coverage, production build, and persistence suites were omitted for this layout change.

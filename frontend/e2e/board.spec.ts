@@ -280,8 +280,7 @@ test("touch swipes scroll the board and holding the drag corner moves a card", a
 
   const second = (await page.getByTestId("card-c2").boundingBox())!;
   const target = { x: center.x, y: second.y + second.height / 2 };
-  const frame = await page.locator(".assistant-panel").boundingBox();
-  expect(target.y).toBeLessThan(frame!.y);
+  expect(target.y).toBeLessThan(page.viewportSize()!.height);
   await sensor.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [center] });
   await expect(surface).toHaveAttribute("aria-pressed", "true");
   await sensor.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [target] });
