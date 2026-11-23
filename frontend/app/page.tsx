@@ -40,7 +40,7 @@ function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete, onPriority
     <div className="card-strip">
       <button type="button" ref={setActivatorNodeRef} className="drag-handle" {...attributes} {...listeners} aria-label={`Move ${card.title}`} />
       <CardPriorityButton card={card} busy={busy} onChange={onPriority} />
-      <button type="button" className="delete-button" disabled={busy} onClick={event => onDelete(event.currentTarget)} aria-label={`Delete ${card.title}`}>
+      <button type="button" className="delete-button" aria-disabled={busy} onClick={event => { if (!busy) onDelete(event.currentTarget); }} aria-label={`Delete ${card.title}`}>
         <Trash2 size={14} aria-hidden="true" />
       </button>
     </div>
@@ -82,7 +82,7 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
         <button className="icon-button" disabled={!name.trim()} aria-label="Save column name"><Check size={15} /></button>
         <button type="button" className="icon-button" aria-label="Cancel rename" onClick={() => finishRename(false)}><X size={15} /></button>
       </form> : <><h2>{column.name}</h2><span className="column-count">{column.cards.length}</span><button ref={renameButton} aria-disabled={busy} className="icon-button rename-button" aria-label={`Rename ${column.name}`} onClick={() => { if (busy) return; setName(column.name); setRenaming(true); }}><Pencil size={13} /></button></>}
-      <button className="icon-button list-delete" disabled={busy || renaming} aria-label={`Delete list ${column.name}`} onClick={event => onDeleteList(event.currentTarget)}><Trash2 size={14} /></button>
+      <button className="icon-button list-delete" disabled={renaming} aria-disabled={busy} aria-label={`Delete list ${column.name}`} onClick={event => { if (!busy) onDeleteList(event.currentTarget); }}><Trash2 size={14} /></button>
     </header>
     <div className="card-stack" style={{ paddingBottom: gapHeight }}>
       {inserting && <div className="insertion-preview" aria-hidden="true" style={{ top: insertionTop, height: gapHeight - 11 }} />}

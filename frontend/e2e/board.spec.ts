@@ -237,6 +237,11 @@ test("opens priority independently of dragging and applies or clears the tint be
     await expect(page.locator(".drag-preview")).toHaveCount(0);
     expect(await card.boundingBox()).toEqual(initialBounds);
     expect(boardState.revision).toBe(0);
+    // Other cards and lists stay inert during the save without dimming (issue #28).
+    for (const control of [page.getByTestId("card-c2").locator(".delete-button"), page.getByRole("button", { name: "Delete list Ideas", exact: true })]) {
+      await expect(control).toHaveAttribute("aria-disabled", "true");
+      await expect(control).toHaveCSS("opacity", "1");
+    }
   } finally { release(); }
   await expect(page.locator(".save-status")).toHaveText("Saved");
   await priority.press("Space");
