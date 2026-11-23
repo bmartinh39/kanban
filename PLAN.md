@@ -481,6 +481,7 @@ Verification (2026-11-23):
 - `npm run lint`, `npm run typecheck`, and `git diff --check` passed.
 - The focused Playwright card-strip and priority cases passed 4/4 in desktop Chromium and mobile Chromium. They cover flush geometry, hover/focus/touch controls, the six-option menu, and applying a tint independently of dragging.
 - Browser plugin not available; regular Playwright verified the rendered board at 1440 x 1000 and 390 x 844 against an isolated temporary database. Resting, hover, open-menu, and selected-medium screenshots showed the brighter strip without clipping, overlap, or layout changes. Page identity and meaningful content passed, with no framework error overlay or console warnings/errors.
+- Live feedback showed the first brightness lift was loaded but too subtle at normal board scale. The resting and hover mixes were strengthened without changing their hues, then verified directly at `http://localhost:3000` with the saved board. The focused Chromium and mobile Chromium cases passed 4/4 again; lint, types, and live console checks remained clean.
 - This is a CSS-only adjustment. Unit tests, Firefox, production build, persistence, coverage, and the broad UI suite were not run under the task-based policy.
 
 - Lint, type checking, `git diff --check`, and the production build passed. The selected Vitest run passed 203 tests in 11 files.
