@@ -180,11 +180,18 @@ dialog textarea { resize: vertical; min-height: 90px; }
 .assistant-collapse:hover { color: var(--text); }
 @media (min-width: 701px) {
   /* Animate only collapse/expand on desktop, never layout changes across the mobile breakpoint. */
-  .app-shell main { transition: margin-right 220ms ease; }
-  .assistant-panel { transition: transform 220ms ease, visibility 0s; }
+  .app-shell main { view-transition-name: board; }
+  .assistant-panel { view-transition-name: assistant-panel; }
   /* Collapsed: the panel slides out (hidden from focus and assistive tech) and the top-bar launcher reopens it. */
   .assistant-collapsed main { margin-right: var(--gutter); }
-  .assistant-collapsed .assistant-panel { transform: translateX(calc(100% + var(--gutter))); visibility: hidden; transition: transform 220ms ease, visibility 0s 220ms; }
+  .assistant-collapsed .assistant-panel { transform: translateX(calc(100% + var(--gutter))); visibility: hidden; }
+  /* Collapse/expand view transition: boxes morph size and position; snapshots keep their text unscaled. */
+  ::view-transition-group(*) { animation-duration: 320ms; animation-timing-function: cubic-bezier(.2, .7, .2, 1); }
+  ::view-transition-image-pair(*) { overflow: hidden; }
+  ::view-transition-old(*), ::view-transition-new(*) { height: 100%; object-fit: none; object-position: left top; }
+  /* Card text re-wraps: a short overlap (old leaves early, new arrives just behind) avoids ghosted double lines. */
+  ::view-transition-old(*.card) { animation-name: view-out; mix-blend-mode: normal; }
+  ::view-transition-new(*.card) { animation-name: view-in; mix-blend-mode: normal; }
   .assistant-collapsed .assistant-toggle { display: flex; }
 }
 .assistant-heading { display: flex; align-items: center; gap: 12px; padding: 22px 22px 0; }
@@ -237,6 +244,8 @@ dialog textarea { resize: vertical; min-height: 90px; }
   .assistant-form > div { margin-top: 8px; }
   .assistant-error { margin: 0 16px 8px; }
 }
+@keyframes view-out { 0% { opacity: 1; } 30%, 100% { opacity: 0; } }
+@keyframes view-in { 0%, 8% { opacity: 0; } 45%, 100% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
   .delete-confirmation, .delete-confirmation::backdrop, .assistant-panel[open] { animation-duration: 1ms !important; }
