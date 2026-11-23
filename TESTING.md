@@ -13,7 +13,7 @@ Documentation-only changes need only a diff review. Add a regression test at the
 
 ## Full gate (CI)
 
-CI runs lint, typecheck, `npm run test:coverage` (thresholds: 90% lines/functions/statements, 85% branches), the full UI suite in Chromium, Firefox and mobile Chromium, a production build, and the Chromium persistence suite. Do not lower thresholds, delete regression cases, or add retries to make it pass.
+Pull requests that only change Markdown files or `.claude/` skip the test jobs. Otherwise CI runs lint, typecheck, `npm run test:coverage` (thresholds: 90% lines/functions/statements, 85% branches), the full UI suite in Chromium, Firefox and mobile Chromium, a production build, and the Chromium persistence suite. Do not lower thresholds, delete regression cases, or add retries to make it pass.
 
 ## Isolation rules
 
