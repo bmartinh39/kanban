@@ -14,6 +14,7 @@ import { AssistantChat } from "./assistant-chat";
 import { DeleteCardDialog, DeleteListDialog } from "./delete-list-dialog";
 import { prepareActions, type AssistantPlan } from "./assistant-commands";
 import { CardPriorityButton } from "./card-priority-button";
+import { fieldCharacterLimit } from "./limits";
 
 
 const emptyBoard: Column[] = [];
@@ -128,7 +129,7 @@ function AddItemDialog({ columnName, onClose, onAdd }: { columnName?: string; on
       <div className="dialog-heading"><h2 id={titleId}>{isList ? "Add a list" : "Add a card"}</h2><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose}><X size={20} /></button></div>
       {!isList && <p className="dialog-subtitle">List <strong>{columnName}</strong></p>}
       <label htmlFor="item-title">{isList ? "List name" : "Title"} <span className="required-label">Required</span></label>
-      <input id="item-title" ref={titleInput} placeholder={isList ? "What is this stage called?" : "What needs to happen?"} value={title} onChange={event => setTitle(event.target.value)} maxLength={20000} required />
+      <input id="item-title" ref={titleInput} placeholder={isList ? "What is this stage called?" : "What needs to happen?"} value={title} onChange={event => setTitle(event.target.value)} maxLength={fieldCharacterLimit} required />
       {!isList && <><label htmlFor="card-details">Details <span className="optional-label">Optional</span></label>
       <textarea id="card-details" placeholder="A little context goes a long way..." value={details} onChange={event => setDetails(event.target.value)} rows={4} /></>}
       <div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={!title.trim()}>{isList ? "Create list" : "Add card"} <Plus size={16} /></button></div>

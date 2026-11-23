@@ -1,4 +1,5 @@
 import { boardReducer, cardPriorities, type Action, type Column } from "./board-state";
+import { batchLimit, fieldCharacterLimit, idCharacterLimit } from "./limits";
 
 export type BoardCommand = Exclude<Action, { type: "assistant" }>;
 export type BoardSnapshot = { columns: Column[]; revision: number };
@@ -6,30 +7,39 @@ export type BoardSnapshot = { columns: Column[]; revision: number };
 export class InvalidCommand extends Error {}
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-const text = (value: unknown): value is string => typeof value === "string" && value.length <= 20_000;
-const id = (value: unknown): value is string => text(value) && value.length > 0 && value.length <= 100;
+const text = (value: unknown): value is string => typeof value === "string" && value.length <= fieldCharacterLimit;
+const id = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= idCharacterLimit;
 const validPriority = (value: unknown) => cardPriorities.some(priority => priority === value);
 export const validRevision = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 
 export function parseCommands(value: unknown): BoardCommand[] {
-  if (!Array.isArray(value) || value.length > 20) throw new InvalidCommand("Send at most 20 board actions.");
+  if (!Array.isArray(value) || value.length > batchLimit) throw new InvalidCommand(`Send at most ${batchLimit} board actions.`);
   for (const action of value) {
-    if (!record(action)) throw new InvalidCommand("Invalid board action.");
-    const valid = action.type === "create-list" ? id(action.listId) && text(action.name)
-      : action.type === "delete-list" ? id(action.columnId)
-      : action.type === "add" ? id(action.columnId) && record(action.card) && id(action.card.id) && text(action.card.title) && text(action.card.details) &&
-        (action.card.priority === undefined || validPriority(action.card.priority))
-      : action.type === "delete" ? id(action.cardId)
-      : action.type === "set-priority" ? id(action.cardId) && (action.priority === null || validPriority(action.priority))
-      : action.type === "rename" ? id(action.columnId) && text(action.name)
-      : action.type === "edit" ? id(action.cardId) && (action.title !== undefined || action.details !== undefined) &&
-        (action.title === undefined || text(action.title)) && (action.details === undefined || text(action.details))
-      : action.type === "move" ? id(action.cardId) && id(action.columnId) &&
-        (action.index === undefined || (Number.isSafeInteger(action.index) && (action.index as number) >= 0))
-      : false;
-    if (!valid) throw new InvalidCommand("Invalid board action.");
+    if (!record(action) || !validCommand(action)) throw new InvalidCommand("Invalid board action.");
   }
   return value as BoardCommand[];
+}
+
+function validCommand(action: Record<string, unknown>) {
+  switch (action.type) {
+    case "create-list": return id(action.listId) && text(action.name);
+    case "delete-list": return id(action.columnId);
+    case "rename": return id(action.columnId) && text(action.name);
+    case "delete": return id(action.cardId);
+    case "set-priority": return id(action.cardId) && (action.priority === null || validPriority(action.priority));
+    case "add": {
+      const card = action.card;
+      return id(action.columnId) && record(card) && id(card.id) && text(card.title) && text(card.details) &&
+        (card.priority === undefined || validPriority(card.priority));
+    }
+    case "edit":
+      return id(action.cardId) && (action.title !== undefined || action.details !== undefined) &&
+        (action.title === undefined || text(action.title)) && (action.details === undefined || text(action.details));
+    case "move":
+      return id(action.cardId) && id(action.columnId) &&
+        (action.index === undefined || (Number.isSafeInteger(action.index) && (action.index as number) >= 0));
+    default: return false;
+  }
 }
 
 export function applyCommands(board: Column[], actions: BoardCommand[]): Column[] {

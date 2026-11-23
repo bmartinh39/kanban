@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "../app/api/assistant/route";
+import { boundedHistory } from "../app/assistant-commands";
 import { initialBoard } from "../app/board-state";
 import * as providers from "../app/server/assistant/providers";
 
@@ -115,6 +116,21 @@ describe("assistant route", () => {
   it("rejects malformed JSON, oversized input, and cross-origin calls", async () => {
     expect((await POST(new Request("http://localhost:3000/api/assistant", { method: "POST", body: "{" }))).status).toBe(400);
     expect((await POST(request({ large: "x".repeat(200_001) }))).status).toBe(413);
+  });
+  it("accepts a follow-up after a long clarification and rejects history beyond the shared budgets", async () => {
+    const generatePlan = vi.fn().mockResolvedValue({ message: "Done", operations: [] });
+    vi.spyOn(providers, "createAssistantProvider").mockReturnValue({ generatePlan });
+    const conversation = [
+      { role: "user" as const, content: "Move it" },
+      { role: "assistant" as const, content: "Which card? ".repeat(800) },
+      { role: "user" as const, content: "The first one" },
+    ];
+    expect((await POST(request({ revision: 0, messages: conversation }))).status).toBe(400);
+    expect((await POST(request({ revision: 0, messages: boundedHistory(conversation) }))).status).toBe(200);
+    expect(generatePlan).toHaveBeenCalledOnce();
+    const multibyte = Array.from({ length: 19 }, (_, index) => ({ role: index % 2 ? "assistant" : "user", content: "€".repeat(4_000) }));
+    expect((await POST(request({ revision: 0, messages: multibyte }))).status).toBe(400);
+    expect(generatePlan).toHaveBeenCalledOnce();
     expect((await POST(new Request("http://localhost:3000/api/assistant", { method: "POST", headers: { origin: "https://other.example" }, body: JSON.stringify(payload) }))).status).toBe(403);
   });
   it("turns invalid destinations and ambiguous targets into clarification without operations", async () => {
