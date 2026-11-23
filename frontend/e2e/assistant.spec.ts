@@ -179,6 +179,24 @@ test("assistant explains a server connection failure and can retry without chang
   expect(boardState.revision).toBe(1);
 });
 
+test("a follow-up after a very long clarification is still accepted (issue #16)", async ({ page }) => {
+  const sent: { role: string; content: string }[][] = [];
+  await page.route("**/api/assistant", async route => {
+    const body = route.request().postDataJSON();
+    sent.push(body.messages);
+    const message = sent.length === 1 ? "Which card do you mean? ".repeat(400) : "Got it.";
+    await route.fulfill({ json: { message, operations: [], revision: body.revision } });
+  });
+  await openChat(page);
+  await send(page, "Move that card");
+  await expect(page.getByRole("log")).toContainText("Which card do you mean?");
+  await send(page, "The first one");
+  await expect(page.getByRole("log")).toContainText("Got it.");
+  await expect(page.locator(".assistant-error")).toHaveCount(0);
+  expect(sent[1].map(message => message.role)).toEqual(["user", "assistant", "user"]);
+  expect(sent[1][1].content.length).toBeLessThanOrEqual(4_000);
+});
+
 test("desktop assistant stays visible, is keyboard accessible, and fits the viewport", async ({ page }) => {
   test.skip(page.viewportSize()!.width <= 700);
   await openChat(page);

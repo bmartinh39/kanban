@@ -2,6 +2,7 @@ import { isRecord, prepareActions, type ChatMessage } from "../../assistant-comm
 import type { Column } from "../../board-state";
 import { validRevision } from "../../board-commands";
 import { getBoardRepository } from "../../server/db";
+import { chatHistoryByteLimit, chatHistoryLimit, chatMessageCharacterLimit, utf8Bytes } from "../../limits";
 import { BoardConflict } from "../../server/db/repository";
 import { boardError, HttpError, json, readBody } from "../../server/board-http";
 import { AssistantConfigurationError, AssistantConnectionError } from "../../server/assistant/provider";
@@ -26,11 +27,13 @@ Return a concise message. The app will validate operations and report their actu
 
 export const runtime = "nodejs";
 
+// Clients send boundedHistory(); these checks enforce the same budgets.
 function validMessages(value: unknown): value is ChatMessage[] {
-  return Array.isArray(value) && value.length > 0 && value.length <= 20 &&
+  return Array.isArray(value) && value.length > 0 && value.length <= chatHistoryLimit &&
     value.at(-1)?.role === "user" && value.every(message => isRecord(message) &&
       ["user", "assistant"].includes(String(message.role)) && typeof message.content === "string" &&
-      message.content.trim().length > 0 && message.content.length <= 4000);
+      message.content.trim().length > 0 && message.content.length <= chatMessageCharacterLimit) &&
+    utf8Bytes(value.map(message => message.content).join("")) <= chatHistoryByteLimit;
 }
 
 export async function POST(request: Request) {
