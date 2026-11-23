@@ -55,7 +55,7 @@ The requirements above describe the original MVP. These implemented follow-ups e
 
 ## Concurrent agent work
 
-Follow `MULTI_AGENT.md` for worktree ownership and integration. Each concurrent task must use its own branch and worktree before editing. Never switch, stash, reset, stage, or commit in another agent's checkout. Do not spawn additional agents unless the user or applicable instructions explicitly request delegation.
+By default, a single agent works in the main checkout on its own task branch; no worktree is needed. Multi-agent mode is opt-in: only when the user explicitly starts parallel agents, follow `MULTI_AGENT.md` for worktree ownership and integration. In that mode, each concurrent task must use its own branch and worktree before editing. Never switch, stash, reset, stage, or commit in another agent's checkout. Do not spawn additional agents unless the user or applicable instructions explicitly request delegation.
 
 ## Verification strategy
 

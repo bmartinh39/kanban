@@ -1,5 +1,7 @@
 # Working with multiple agents
 
+This is an opt-in mode. It applies only when the user explicitly starts parallel agents. Otherwise a single agent works in the main checkout on its own task branch.
+
 Use one branch and one Git worktree per concurrent task. Agents working in the same checkout share files, index, HEAD, dependencies, build output and servers; selecting different files does not isolate them. Worktrees separate those surfaces while sharing Git objects and refs.
 
 ## Start a task
