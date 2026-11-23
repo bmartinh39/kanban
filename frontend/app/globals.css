@@ -77,7 +77,7 @@ h1, h2 { font-family: var(--heading-font); }
 [data-priority="critical"] { --priority-color: #a65eff; }
 .priority-bar {
   --priority-tint: var(--priority-color, var(--priority-neutral));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--priority-tint) 56%, transparent), color-mix(in srgb, var(--priority-tint) 70%, transparent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--priority-tint) 56%, transparent), color-mix(in srgb, var(--priority-tint) 40%, transparent));
   color: var(--text);
 }
 .priority-bar:is(:hover, :focus-visible, [aria-expanded="true"]) {
