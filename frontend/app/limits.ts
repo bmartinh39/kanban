@@ -6,6 +6,9 @@ export const chatMessageCharacterLimit = 4_000;
 export const chatHistoryLimit = 20;
 export const chatHistoryByteLimit = 64_000; // UTF-8 bytes; keeps assistant requests well under the request budget.
 export const requestCharacterLimit = 200_000;
+// Byte budget for request bodies, enforced while streaming. One UTF-16 code unit is at most
+// 3 UTF-8 bytes, so every request within the character limit also fits this byte limit.
+export const requestByteLimit = requestCharacterLimit * 3;
 export const nameDisplayLimit = 80; // Card/list names quoted in assistant outcome messages.
 
 export const utf8Bytes = (value: string) => new TextEncoder().encode(value).length;
