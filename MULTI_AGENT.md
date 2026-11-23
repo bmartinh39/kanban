@@ -29,7 +29,7 @@ Verify the absolute working directory and branch before every commit. If the lau
 - Assign unique application and UI-test ports. Set `PLAYWRIGHT_PORT` for ordinary UI tests; their default is 3210. Persistence tests currently use fixed port 3220, so serialize those runs unless their configuration is explicitly given a dedicated port.
 - Keep development databases, temporary test databases, reports and screenshots isolated. Never point an agent's tests at another task's database or the user's saved board. Do not copy secrets into commits or broadly duplicate environment files.
 - Run UI tests, builds and production persistence sequentially within a worktree because their Next.js outputs are related. Different worktrees isolate build files, but still share machine resources and ports; avoid concurrent heavy suites.
-- Follow `TESTING.md` to select checks for the task. Multiple agents do not justify repeating the full test matrix in each checkout.
+- Follow `TESTING.md`: each agent runs its task loop; CI runs the full gate on the integrated pull request.
 
 ## Review and integrate
 

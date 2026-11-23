@@ -56,14 +56,16 @@ test("new lists and their cards persist, and competing list creation rejects sta
   await handle.focus();
   await page.keyboard.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(target).toHaveClass(/is-over/);
   await page.keyboard.press("ArrowLeft");
-  const previousName = created.columns.at(-2)!.name;
-  await expect(page.getByRole("region", { name: `${previousName} column`, exact: true })).toHaveClass(/is-over/);
+  const previous = page.getByRole("region", { name: `${created.columns.at(-2)!.name} column`, exact: true });
+  await expect(previous).toHaveClass(/is-over/);
   await page.keyboard.press("Space");
   await expect(page.locator(".save-status")).toHaveText("Saved");
   await expect(handle).toHaveAttribute("aria-disabled", "false");
   await handle.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(previous).toHaveClass(/is-over/);
   await page.keyboard.press("ArrowRight");
   await expect(target).toHaveClass(/is-over/);
   await page.keyboard.press("Space");
