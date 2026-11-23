@@ -53,6 +53,10 @@ The requirements above describe the original MVP. These implemented follow-ups e
 - Test with isolated temporary databases and controlled AI responses. No database reset endpoint or production test data. Chat persistence, accounts, and live collaboration remain outside issue #5; list creation is covered by issue #3.
 - Ordinary browser tests start a dedicated server on port 3210 (`PLAYWRIGHT_PORT` may override it), never reuse an existing server, and clear live AI keys. Keep their startup database temporary and remove it only after server shutdown. Keep UI and persistence test artifacts separate.
 
+## Issue workflow
+
+When the user assigns a GitHub issue, work it end to end without asking for each step: create a branch from current `origin/main` (`fix/issue-N-...` or `feat/issue-N-...`), implement, run the task loop from `TESTING.md`, commit, push the branch, open a PR that references the issue (`Closes #N`) with a short verification summary, then check CI and fix failures on the same branch. Never push to `main`, merge, force-push, or close issues; the user reviews and merges. Still stop and ask for material design or interaction choices, scope beyond the issue, or anything destructive.
+
 ## Concurrent agent work
 
 By default, a single agent works in the main checkout on its own task branch; no worktree is needed. Multi-agent mode is opt-in: only when the user explicitly starts parallel agents, follow `MULTI_AGENT.md` for worktree ownership and integration. In that mode, each concurrent task must use its own branch and worktree before editing. Never switch, stash, reset, stage, or commit in another agent's checkout. Do not spawn additional agents unless the user or applicable instructions explicitly request delegation.
