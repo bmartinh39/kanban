@@ -25,7 +25,7 @@ function CardContent({ card }: { card: Card }) {
 function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete, onPriority }: {
   card: Card; columnId: string; busy: boolean; insertOffset?: number;
   onDelete: (trigger: HTMLButtonElement) => void;
-  onPriority: (priority: CardPriority) => Promise<void>;
+  onPriority: (priority: CardPriority | null) => Promise<void>;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging, transform, transition } = useSortable({
     id: card.id,
@@ -54,7 +54,7 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
   onDelete: (card: Card, trigger: HTMLButtonElement) => void;
   onDeleteList: (trigger: HTMLButtonElement) => void;
   onRename: (name: string) => void;
-  onPriority: (cardId: string, priority: CardPriority) => Promise<void>;
+  onPriority: (cardId: string, priority: CardPriority | null) => Promise<void>;
 }) {
   const { setNodeRef } = useDroppable({ id: column.id, data: { type: "column", columnId: column.id, index } });
   const { active, activeNodeRect, over, droppableRects } = useDndContext();

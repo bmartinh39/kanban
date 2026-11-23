@@ -53,6 +53,16 @@ describe("board HTTP API", () => {
     expect((await response.json()).revision).toBe(1);
     expect((await GET().json()).columns[0].cards).toHaveLength(2);
   });
+  it("sets and clears a card priority through the saved API", async () => {
+    const prioritized = await POST(request({ revision: 0, actions: [{ type: "set-priority", cardId: "c1", priority: "medium" }] }));
+    expect(prioritized.status).toBe(200);
+    expect((await prioritized.json()).columns[0].cards[0].priority).toBe("medium");
+    const cleared = await POST(request({ revision: 1, actions: [{ type: "set-priority", cardId: "c1", priority: null }] }));
+    expect(cleared.status).toBe(200);
+    const card = (await cleared.json()).columns[0].cards[0];
+    expect(card).not.toHaveProperty("priority");
+    expect((await GET().json()).columns[0].cards[0]).toEqual(card);
+  });
   it("returns a conflict without overwriting saved changes", async () => {
     await POST(request({ revision: 0, actions: [{ type: "delete", cardId: "c1" }] }));
     expect((await POST(request({ revision: 0, actions: [{ type: "delete", cardId: "c2" }] }))).status).toBe(409);

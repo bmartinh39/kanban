@@ -84,6 +84,10 @@ describe("SQLite persistence", () => {
     const saved = repo.mutate(existing.revision, [priority]);
     expect(saved.columns[0].cards[0]).toEqual({ ...existing.columns[0].cards[0], priority: "medium" });
     expect(repo.mutate(saved.revision, [priority])).toEqual(saved);
+    const cleared = repo.mutate(saved.revision, [{ type: "set-priority", cardId: "c1", priority: null }]);
+    expect(cleared.columns[0].cards[0]).toEqual(existing.columns[0].cards[0]);
+    expect(db.prepare("SELECT priority FROM cards WHERE id = 'c1'").get()).toEqual({ priority: null });
+    expect(repo.mutate(cleared.revision, [{ type: "set-priority", cardId: "c1", priority: null }])).toEqual(cleared);
     expect(() => db.prepare("UPDATE cards SET priority = 'other' WHERE id = 'c1'").run()).toThrow("CHECK");
   });
   it("persists rename, creation, edits, ordering, cross-column insertion, and deletion on reopen", () => {

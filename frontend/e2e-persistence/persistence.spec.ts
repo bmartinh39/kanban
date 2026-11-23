@@ -124,7 +124,14 @@ test("real database preserves card content, priority, names, moves and order on 
   await expect(page.getByRole("region", { name: "Next up column" }).getByRole("heading", { name: title })).toHaveCount(1);
   expect(await snapshot(page)).toEqual(before);
   expect(before.columns[1].cards[1]).toMatchObject({ title, details: "Saved context", priority: "medium" });
-  await expect(page.getByRole("button", { name: `Priority for ${title}: Medium`, exact: true })).toHaveAttribute("data-priority", "medium");
+  const reloadedPriority = page.getByRole("button", { name: `Priority for ${title}: Medium`, exact: true });
+  await expect(reloadedPriority).toHaveAttribute("data-priority", "medium");
+  await reloadedPriority.click();
+  await page.getByRole("menuitemradio", { name: "No priority", exact: true }).click();
+  await expect(page.locator(".save-status")).toHaveText("Saved");
+  await page.reload();
+  await expect(page.getByRole("button", { name: `Priority for ${title}: None`, exact: true })).not.toHaveAttribute("data-priority");
+  expect((await snapshot(page)).columns[1].cards[1]).toEqual({ id: before.columns[1].cards[1].id, title, details: "Saved context" });
   await page.getByRole("button", { name: "Rename Next up", exact: true }).click();
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Planned");
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");

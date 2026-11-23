@@ -484,6 +484,22 @@ Verification (2026-11-23):
 - Live feedback showed the first brightness lift was loaded but too subtle at normal board scale. The resting and hover mixes were strengthened without changing their hues, then verified directly at `http://localhost:3000` with the saved board. The focused Chromium and mobile Chromium cases passed 4/4 again; lint, types, and live console checks remained clean.
 - This is a CSS-only adjustment. Unit tests, Firefox, production build, persistence, coverage, and the broad UI suite were not run under the task-based policy.
 
+### Follow-up in PR #27: clear card priority
+
+- [x] Add a neutral “No priority” menu option that restores the established gray bar.
+- [x] Save the clear action atomically as SQLite `NULL` and return the card without a priority.
+- [x] Verify keyboard, pointer, mobile, API, reducer, and reload persistence behavior.
+
+Verification (2026-11-23):
+
+- `npm ci --no-audit --no-fund` installed independent worktree dependencies without changing the lockfile. Lint, type checking, the production build, and `git diff --check` passed.
+- Five selected unit/component/API/database files passed 107 tests, covering reducer removal of the optional field, API validation, SQLite `NULL`, unchanged clears, and existing board/save callers.
+- The focused priority browser scenario passed in desktop Chromium, Firefox, and mobile Chromium. It verifies the seven menu choices, initial gray selection, keyboard navigation, colored selection, clearing back to `None`, and no drag activation. Firefox crashed before opening a page inside the filesystem sandbox, then passed with its temporary profile outside the sandbox.
+- The focused production SQLite Chromium scenario passed after setting a priority, clearing it, and reloading the card without a priority. Its runner was stopped after the passing scenario hung during teardown; no task server was left running.
+- Browser plugin not available; regular Playwright screenshots at 1440 x 1000 and 390 x 844 showed the neutral option and selected gray swatch without clipping or overlap. Page identity, meaningful content, framework overlay, and console checks passed.
+
+Limits: focused PR follow-up; broad coverage and the full UI/persistence matrices were not run under the task-based policy. No live provider calls.
+
 - Lint, type checking, `git diff --check`, and the production build passed. The selected Vitest run passed 203 tests in 11 files.
 - Playwright passed 25 selected UI cases across desktop Chromium, Firefox, and mobile Chromium. The touch drag test runs only in the mobile project. Testing caught a one-pixel overflow from the original strip styling and a subpixel rounding difference in the geometry assertion. Both passed after correction. Firefox required access outside the filesystem sandbox to create its temporary profile.
 - All six Chromium production persistence cases passed against temporary SQLite. The priority, move, and reload case also passed in Firefox and mobile Chromium. The database tests cover migration of an existing board, invalid priorities, and an unchanged revision when setting the same value again.

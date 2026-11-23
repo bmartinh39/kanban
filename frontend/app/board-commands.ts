@@ -20,7 +20,7 @@ export function parseCommands(value: unknown): BoardCommand[] {
       : action.type === "add" ? id(action.columnId) && record(action.card) && id(action.card.id) && text(action.card.title) && text(action.card.details) &&
         (action.card.priority === undefined || validPriority(action.card.priority))
       : action.type === "delete" ? id(action.cardId)
-      : action.type === "set-priority" ? id(action.cardId) && validPriority(action.priority)
+      : action.type === "set-priority" ? id(action.cardId) && (action.priority === null || validPriority(action.priority))
       : action.type === "rename" ? id(action.columnId) && text(action.name)
       : action.type === "edit" ? id(action.cardId) && (action.title !== undefined || action.details !== undefined) &&
         (action.title === undefined || text(action.title)) && (action.details === undefined || text(action.details))

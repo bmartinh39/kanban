@@ -10,18 +10,19 @@ const priorityLabels: Record<CardPriority, string> = {
   urgent: "Urgent",
   critical: "Critical",
 };
+const priorityOptions: readonly (CardPriority | null)[] = [null, ...cardPriorities];
 
 export function CardPriorityButton({ card, busy, onChange }: {
   card: Card;
   busy: boolean;
-  onChange: (priority: CardPriority) => Promise<void>;
+  onChange: (priority: CardPriority | null) => Promise<void>;
 }) {
   const menuId = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const popup = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [pendingPriority, setPendingPriority] = useState<CardPriority>();
-  const priority = pendingPriority ?? card.priority;
+  const [pendingPriority, setPendingPriority] = useState<CardPriority | null>();
+  const priority = pendingPriority === undefined ? card.priority : pendingPriority ?? undefined;
   const disabled = busy || pendingPriority !== undefined;
 
   useLayoutEffect(() => {
@@ -67,10 +68,10 @@ export function CardPriorityButton({ card, busy, onChange }: {
     options[next].focus();
   }
 
-  async function choose(next: CardPriority) {
+  async function choose(next: CardPriority | null) {
     popup.current?.hidePopover();
     trigger.current?.focus({ preventScroll: true });
-    if (disabled || next === priority) return;
+    if (disabled || next === (priority ?? null)) return;
     setPendingPriority(next);
     try { await onChange(next); }
     finally { setPendingPriority(undefined); }
@@ -84,11 +85,11 @@ export function CardPriorityButton({ card, busy, onChange }: {
     </button>
     <div id={menuId} ref={popup} className="priority-menu" popover="auto" role="menu" aria-label={`Priority for ${card.title}`}
       onToggle={event => setOpen(event.newState === "open")} onKeyDown={handleMenuKey}>
-      {cardPriorities.map(option => <button type="button" key={option} role="menuitemradio" tabIndex={-1}
-        aria-checked={priority === option} onClick={() => void choose(option)}>
-        <span className="priority-swatch" data-priority={option} aria-hidden="true" />
-        {priorityLabels[option]}
-        {priority === option && <Check size={14} aria-hidden="true" />}
+      {priorityOptions.map(option => <button type="button" key={option ?? "none"} role="menuitemradio" tabIndex={-1}
+        aria-checked={(priority ?? null) === option} onClick={() => void choose(option)}>
+        <span className="priority-swatch" data-priority={option ?? undefined} aria-hidden="true" />
+        {option === null ? "No priority" : priorityLabels[option]}
+        {(priority ?? null) === option && <Check size={14} aria-hidden="true" />}
       </button>)}
     </div>
   </>;

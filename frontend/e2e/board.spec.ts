@@ -189,7 +189,7 @@ test("keeps a flush card strip and reveals deletion on hover, focus, and touch",
   await expect(card).toHaveCount(0);
 });
 
-test("opens priority independently of dragging and applies the chosen tint before saving", async ({ page, boardState }, info) => {
+test("opens priority independently of dragging and applies or clears the tint before saving", async ({ page, boardState }, info) => {
   const card = page.getByTestId("card-c1");
   const priority = card.getByRole("button", { name: /^Priority for / });
   const handle = card.getByRole("button", { name: /^Move / });
@@ -208,8 +208,8 @@ test("opens priority independently of dragging and applies the chosen tint befor
     await priority.click();
   }
 
-  await expect(menu.getByRole("menuitemradio")).toHaveText(["Low", "Normal", "Medium", "High", "Urgent", "Critical"]);
-  await expect(menu.getByRole("menuitemradio", { name: "Low" })).toBeFocused();
+  await expect(menu.getByRole("menuitemradio")).toHaveText(["No priority", "Low", "Normal", "Medium", "High", "Urgent", "Critical"]);
+  await expect(menu.getByRole("menuitemradio", { name: "No priority" })).toBeFocused();
   const anchorBounds = (await priority.boundingBox())!;
   const menuBounds = (await menu.boundingBox())!;
   expect(menuBounds.y).toBe(anchorBounds.y + anchorBounds.height + 5);
@@ -223,6 +223,7 @@ test("opens priority independently of dragging and applies the chosen tint befor
     if (info.project.name === "mobile") {
       await menu.getByRole("menuitemradio", { name: "Medium" }).tap();
     } else {
+      await page.keyboard.press("ArrowDown");
       await page.keyboard.press("ArrowDown");
       await page.keyboard.press("ArrowDown");
       await expect(menu.getByRole("menuitemradio", { name: "Medium" })).toBeFocused();
@@ -243,6 +244,13 @@ test("opens priority independently of dragging and applies the chosen tint befor
   await expect(menu).toBeHidden();
   await expect(priority).toBeFocused();
   expect(boardState.revision).toBe(1);
+  await priority.press("Space");
+  await menu.getByRole("menuitemradio", { name: "No priority" }).click();
+  await expect(menu).toBeHidden();
+  await expect(priority).not.toHaveAttribute("data-priority");
+  await expect(priority).toHaveAccessibleName(/: None$/);
+  await expect(page.locator(".save-status")).toHaveText("Saved");
+  expect(boardState.revision).toBe(2);
   if (info.project.name !== "mobile") {
     await page.setViewportSize({ width: 1900, height: 430 });
     const edgeCard = page.getByTestId("card-c12");

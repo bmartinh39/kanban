@@ -58,7 +58,7 @@ h1, h2 { font-family: var(--heading-font); }
 .rename-button { margin-left: auto; }
 .card-stack { position: relative; display: flex; flex-direction: column; gap: 11px; }
 .insertion-preview { position: absolute; left: 0; right: 0; border: 1px dashed var(--accent); border-radius: 8px; background: #91f4cc12; pointer-events: none; }
-.task-card { --strip-height: 24px; --corner-width: 36px; position: relative; background: var(--raised); border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line), 0 2px 3px #0002; overflow-wrap: anywhere; transition: box-shadow .2s; }
+.task-card { --strip-height: 24px; --corner-width: 36px; --priority-neutral: #c3cddd; position: relative; background: var(--raised); border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line), 0 2px 3px #0002; overflow-wrap: anywhere; transition: box-shadow .2s; }
 .task-card:hover { box-shadow: inset 0 0 0 1px var(--line), 0 4px 14px #0003; }
 .card-strip { display: grid; grid-template-columns: var(--corner-width) minmax(0, 1fr) var(--corner-width); height: var(--strip-height); border-radius: inherit; }
 .card-strip > :is(.drag-handle, .priority-bar, .delete-button) {
@@ -76,7 +76,7 @@ h1, h2 { font-family: var(--heading-font); }
 [data-priority="urgent"] { --priority-color: #f84169; }
 [data-priority="critical"] { --priority-color: #a65eff; }
 .priority-bar {
-  --priority-tint: var(--priority-color, #c3cddd);
+  --priority-tint: var(--priority-color, var(--priority-neutral));
   background: linear-gradient(180deg, color-mix(in srgb, var(--priority-tint) 56%, transparent), color-mix(in srgb, var(--priority-tint) 70%, transparent));
   color: var(--text);
 }
@@ -109,6 +109,7 @@ h1, h2 { font-family: var(--heading-font); }
 .priority-menu button:is(:hover, :focus-visible) { background: var(--hover); }
 .priority-menu button svg { margin-inline-start: auto; color: var(--accent); }
 .priority-swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--priority-color); }
+.priority-swatch:not([data-priority]) { background: var(--priority-neutral); }
 .card-content { padding: 10px 17px 17px; }
 .task-card h3 { font-size: 13px; font-weight: 600; line-height: 1.55; margin: 0; letter-spacing: -.1px; }
 .task-card p { margin: 6px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.8; }
