@@ -46,6 +46,13 @@ describe("board state", () => {
     expect(initialBoard[1].cards).toHaveLength(2);
     expect(result[0]).toBe(initialBoard[0]);
   });
+  it("sets and clears a card priority without changing its content", () => {
+    const prioritized = boardReducer(initialBoard, { type: "set-priority", cardId: "c1", priority: "medium" });
+    expect(prioritized[0].cards[0]).toEqual({ ...initialBoard[0].cards[0], priority: "medium" });
+    const cleared = boardReducer(prioritized, { type: "set-priority", cardId: "c1", priority: null });
+    expect(cleared[0].cards[0]).toEqual(initialBoard[0].cards[0]);
+    expect(cleared[0].cards[0]).not.toHaveProperty("priority");
+  });
   it("allows empty details and rejects whitespace titles", () => {
     const result = boardReducer(initialBoard, { type: "add", columnId: "ideas", card: { id: "new", title: "Task", details: "" } });
     expect(result[0].cards.at(-1)?.details).toBe("");

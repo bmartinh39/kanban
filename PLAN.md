@@ -446,3 +446,74 @@ Lint and type checking passed. The focused assistant, board and collision tests 
 Firefox required a run outside the filesystem sandbox to open its temporary profile. Firefox emitted a browser warning about microtask ordering during the drawer test, whose interaction assertions passed. The browser regression checks page and console errors, consistent with the other assistant tests.
 
 The app's API and persistence code did not change. Production build, real SQLite browser checks, full coverage, and Safari/iOS device testing were outside this focused run.
+## Card handle alignment and delete hover
+
+- [x] Align the drag handle with the first line of the card title and use the same header in the drag preview.
+- [x] Reveal the delete control on card hover or keyboard focus. Keep it visible on devices without hover and retain the card deletion confirmation.
+
+Verification:
+
+- Lint, type checking and the production build passed. The focused `board`, `assistant-chat`, `keyboard-coordinates` and `drag-collision` suites passed all 61 tests.
+- Playwright passed all 84 selected Chromium, Firefox and mobile Chromium cases across the board, drag/reorder, confirmation and assistant flows. The regression checks first-line alignment, pointer exit after hovering the delete icon, pointer cancellation without sticky visibility, Tab and Enter, and touch deletion. An initial mixed pointer/keyboard mobile reorder intermittency passed unchanged in the final run against current `origin/main`. Firefox needed execution outside the sandbox after pages crashed on startup.
+- Browser plugin unavailable. Reviewed Playwright screenshots at 1440 × 1000 and 390 × 664 and checked the rendered page, card content and application errors. The screenshots are in the OS temporary directory. Full UI and coverage suites were outside this focused check.
+- The three focused Chromium persistence scenarios passed against a production build with temporary SQLite storage. They cover confirmed deletion across reload, stale saves across tabs and stale assistant proposals.
+
+### Follow-up in PR #25
+
+- [x] Remove the handles, align title and details at the same left edge, and use the whole card as the drag target with a grab cursor.
+- [x] Reveal the delete button only over its own hover target or with keyboard focus. Keep it visible on touch screens and preserve the confirmation dialog.
+- [x] Preserve touch scrolling with press-and-hold dragging and retain keyboard sorting and focus restoration.
+
+Lint, type checking, the production build and all 67 focused unit and component tests passed. Playwright passed 97 selected cases in Chromium, Firefox and mobile Chromium. The touch gesture case runs only in mobile Chromium. It verifies that swiping over a card scrolls and holding it first enables drag and drop. Desktop checks confirm the grab cursor and that the delete icon hides when moving from its button to another part of the same card, even after mouse cancellation. Keyboard checks cover sorting, focus restoration and delete confirmation.
+
+The Browser plugin was unavailable. Playwright screenshots at 1440 × 1000 and 390 × 664 showed the shared left alignment, expected content and no framework error overlay or console errors. Full UI and coverage suites were outside these focused checks.
+
+Three production SQLite scenarios passed in Chromium, covering moves, deletion and reload, stale tab saves, and stale assistant proposals.
+
+### Pre-merge verification
+
+- Lint, type checking and diff checks passed. All 243 tests passed with 98.79% line coverage and 90.71% branch coverage.
+- The full browser run exercised all three browser projects. It recorded 183 passes, two expected skips for the touch-only case, and one intermittent failure in the Chromium mixed pointer and keyboard reorder test. Its trace showed a drop at the original position with no intervening move announcement. The test now waits for the destination column to become the active drop target before pressing Arrow Up and checks the announced destination before dropping.
+- The corrected test passed all nine runs, three each in Chromium, Firefox and mobile Chromium.
+- The production build passed. The full SQLite run recorded 17 passes and one mobile failure after a keyboard pickup that had the same timing issue. The test now waits for its source column to become the active drop target before pressing Arrow Right. The corrected scenario passed all nine runs across the three browser projects.
+
+## Issue #26 — Card controls and priority
+
+- [x] Add a flush card strip with a dedicated drag handle, six priority choices, and the existing delete confirmation.
+- [x] Save optional priority through the revision-checked board API and migrate existing SQLite boards with neutral cards.
+- [x] Verify the strip at board scale, keyboard and touch interactions, drag within and across lists, and saved priority after reload.
+
+### Follow-up in PR #27: brighter card strip
+
+- [x] Brighten the left drag corner, neutral and six priority tints, and right delete corner without changing their color identity.
+- [x] Verify resting, hover, open-menu, and selected-priority states at desktop and mobile board scale.
+- [x] Run lint, type checking, focused browser checks, and `git diff --check`; record results and limits.
+
+Verification (2026-11-23):
+
+- `npm run lint`, `npm run typecheck`, and `git diff --check` passed.
+- The focused Playwright card-strip and priority cases passed 4/4 in desktop Chromium and mobile Chromium. They cover flush geometry, hover/focus/touch controls, the six-option menu, and applying a tint independently of dragging.
+- Browser plugin not available; regular Playwright verified the rendered board at 1440 x 1000 and 390 x 844 against an isolated temporary database. Resting, hover, open-menu, and selected-medium screenshots showed the brighter strip without clipping, overlap, or layout changes. Page identity and meaningful content passed, with no framework error overlay or console warnings/errors.
+- Live feedback showed the first brightness lift was loaded but too subtle at normal board scale. The resting and hover mixes were strengthened without changing their hues, then verified directly at `http://localhost:3000` with the saved board. The focused Chromium and mobile Chromium cases passed 4/4 again; lint, types, and live console checks remained clean.
+- This is a CSS-only adjustment. Unit tests, Firefox, production build, persistence, coverage, and the broad UI suite were not run under the task-based policy.
+
+### Follow-up in PR #27: clear card priority
+
+- [x] Add a neutral “No priority” menu option that restores the established gray bar.
+- [x] Save the clear action atomically as SQLite `NULL` and return the card without a priority.
+- [x] Verify keyboard, pointer, mobile, API, reducer, and reload persistence behavior.
+
+Verification (2026-11-23):
+
+- `npm ci --no-audit --no-fund` installed independent worktree dependencies without changing the lockfile. Lint, type checking, the production build, and `git diff --check` passed.
+- Five selected unit/component/API/database files passed 107 tests, covering reducer removal of the optional field, API validation, SQLite `NULL`, unchanged clears, and existing board/save callers.
+- The focused priority browser scenario passed in desktop Chromium, Firefox, and mobile Chromium. It verifies the seven menu choices, initial gray selection, keyboard navigation, colored selection, clearing back to `None`, and no drag activation. Firefox crashed before opening a page inside the filesystem sandbox, then passed with its temporary profile outside the sandbox.
+- The focused production SQLite Chromium scenario passed after setting a priority, clearing it, and reloading the card without a priority. Its runner was stopped after the passing scenario hung during teardown; no task server was left running.
+- Browser plugin not available; regular Playwright screenshots at 1440 x 1000 and 390 x 844 showed the neutral option and selected gray swatch without clipping or overlap. Page identity, meaningful content, framework overlay, and console checks passed.
+
+Limits: focused PR follow-up; broad coverage and the full UI/persistence matrices were not run under the task-based policy. No live provider calls.
+
+- Lint, type checking, `git diff --check`, and the production build passed. The selected Vitest run passed 203 tests in 11 files.
+- Playwright passed 25 selected UI cases across desktop Chromium, Firefox, and mobile Chromium. The touch drag test runs only in the mobile project. Testing caught a one-pixel overflow from the original strip styling and a subpixel rounding difference in the geometry assertion. Both passed after correction. Firefox required access outside the filesystem sandbox to create its temporary profile.
+- All six Chromium production persistence cases passed against temporary SQLite. The priority, move, and reload case also passed in Firefox and mobile Chromium. The database tests cover migration of an existing board, invalid priorities, and an unchanged revision when setting the same value again.
+- The Browser extension was unavailable, and the GitHub image request returned HTTP 403. Playwright screenshots at 1440 × 1000 and 390 × 664 verified the documented resting, hover, and open states at board scale with no framework overlays or browser errors. The broad coverage and UI suites were outside the focused checks.
