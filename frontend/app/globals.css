@@ -65,27 +65,27 @@ h1, h2 { font-family: var(--heading-font); }
   display: grid; place-items: center; border: 0; padding: 0; min-width: 0;
   box-shadow: inset 0 1px 0 #fff2; outline-offset: -3px;
 }
-.drag-handle { border-start-start-radius: inherit; background: linear-gradient(125deg, #65dec557, #2ca3a82e); cursor: grab; }
-.drag-handle:hover, .drag-handle:focus-visible, .drag-preview .drag-handle { background: linear-gradient(125deg, #9fffd7cc, #4fdce3a3); }
+.drag-handle { border-start-start-radius: inherit; background: linear-gradient(125deg, #7cebd16b, #38b8bd45); cursor: grab; }
+.drag-handle:hover, .drag-handle:focus-visible, .drag-preview .drag-handle { background: linear-gradient(125deg, #b2ffe2d9, #68ebf0b3); }
 .drag-handle:active { cursor: grabbing; }
 .drag-handle[aria-disabled="true"], .priority-bar[aria-disabled="true"] { cursor: default; }
-[data-priority="low"] { --priority-color: #8df0bb; }
-[data-priority="normal"] { --priority-color: #80caff; }
-[data-priority="medium"] { --priority-color: #f6bd59; }
-[data-priority="high"] { --priority-color: #ff9d5e; }
-[data-priority="urgent"] { --priority-color: #ff829b; }
-[data-priority="critical"] { --priority-color: #b485ff; }
+[data-priority="low"] { --priority-color: #9af6c5; }
+[data-priority="normal"] { --priority-color: #91d2ff; }
+[data-priority="medium"] { --priority-color: #ffc96b; }
+[data-priority="high"] { --priority-color: #ffaa6c; }
+[data-priority="urgent"] { --priority-color: #ff90a7; }
+[data-priority="critical"] { --priority-color: #c096ff; }
 .priority-bar {
-  --priority-tint: var(--priority-color, #a1acbf);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--priority-tint) 36%, transparent), color-mix(in srgb, var(--priority-tint) 15%, transparent));
+  --priority-tint: var(--priority-color, #b4bfd0);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--priority-tint) 43%, transparent), color-mix(in srgb, var(--priority-tint) 20%, transparent));
   color: var(--text);
 }
 .priority-bar:is(:hover, :focus-visible, [aria-expanded="true"]) {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--priority-tint) 77%, transparent), color-mix(in srgb, var(--priority-tint) 44%, transparent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--priority-tint) 82%, transparent), color-mix(in srgb, var(--priority-tint) 50%, transparent));
   color: #101216;
 }
-.delete-button { border-start-end-radius: inherit; background: linear-gradient(135deg, #a77c9a35, #37273590); color: #f8bac7; }
-.delete-button:not(:disabled):hover { background: linear-gradient(135deg, #ff9c9db0, #ea5c87a1); color: #211018; }
+.delete-button { border-start-end-radius: inherit; background: linear-gradient(135deg, #c18dab4a, #53384c9c); color: #ffc7d2; }
+.delete-button:not(:disabled):hover { background: linear-gradient(135deg, #ffaaaabc, #ef6a91ad); color: #211018; }
 @media (hover: hover) and (pointer: fine) {
   .card-strip :is(.priority-bar, .delete-button) svg { opacity: 0; }
   .priority-bar:is(:hover, :focus-visible, [aria-expanded="true"]) svg,

@@ -470,6 +470,19 @@ Three production SQLite scenarios passed in Chromium, covering moves, deletion a
 - [x] Save optional priority through the revision-checked board API and migrate existing SQLite boards with neutral cards.
 - [x] Verify the strip at board scale, keyboard and touch interactions, drag within and across lists, and saved priority after reload.
 
+### Follow-up in PR #27: brighter card strip
+
+- [x] Brighten the left drag corner, neutral and six priority tints, and right delete corner without changing their color identity.
+- [x] Verify resting, hover, open-menu, and selected-priority states at desktop and mobile board scale.
+- [x] Run lint, type checking, focused browser checks, and `git diff --check`; record results and limits.
+
+Verification (2026-11-23):
+
+- `npm run lint`, `npm run typecheck`, and `git diff --check` passed.
+- The focused Playwright card-strip and priority cases passed 4/4 in desktop Chromium and mobile Chromium. They cover flush geometry, hover/focus/touch controls, the six-option menu, and applying a tint independently of dragging.
+- Browser plugin not available; regular Playwright verified the rendered board at 1440 x 1000 and 390 x 844 against an isolated temporary database. Resting, hover, open-menu, and selected-medium screenshots showed the brighter strip without clipping, overlap, or layout changes. Page identity and meaningful content passed, with no framework error overlay or console warnings/errors.
+- This is a CSS-only adjustment. Unit tests, Firefox, production build, persistence, coverage, and the broad UI suite were not run under the task-based policy.
+
 - Lint, type checking, `git diff --check`, and the production build passed. The selected Vitest run passed 203 tests in 11 files.
 - Playwright passed 25 selected UI cases across desktop Chromium, Firefox, and mobile Chromium. The touch drag test runs only in the mobile project. Testing caught a one-pixel overflow from the original strip styling and a subpixel rounding difference in the geometry assertion. Both passed after correction. Firefox required access outside the filesystem sandbox to create its temporary profile.
 - All six Chromium production persistence cases passed against temporary SQLite. The priority, move, and reload case also passed in Firefox and mobile Chromium. The database tests cover migration of an existing board, invalid priorities, and an unchanged revision when setting the same value again.
