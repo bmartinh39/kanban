@@ -26,3 +26,8 @@ export async function visibleBoardFrame(page: Page) {
     return { x, y, width: Math.min(window.innerWidth, board.right) - x, height: Math.min(window.innerHeight, board.bottom) - y };
   });
 }
+
+// Arrow keys are ignored until the keyboard sensor has an active drop target.
+export async function expectKeyboardDropTarget(page: Page) {
+  await expect(page.locator(".column.is-over")).toHaveCount(1);
+}

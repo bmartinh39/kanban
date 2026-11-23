@@ -1,5 +1,5 @@
 import { type Locator, type Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, test, expectKeyboardDropTarget } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -52,6 +52,7 @@ async function keyboardMove(page: Page, title: string, target: string, cancel = 
   await handle.focus();
   await page.keyboard.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowRight");
   // Scrolling between rows updates the drop target asynchronously on narrow screens.
   await expect(page.getByRole("region", { name: `${target} column`, exact: true })).toHaveClass(/is-over/);
@@ -347,6 +348,7 @@ test("appends, cancels, and reorders by keyboard after scrolling, then persists 
   await expect(handle).toBeInViewport();
   await handle.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowUp");
   await expect.poll(() => planned.getByTestId("card-c5").evaluate(card => card.style.transform)).toContain("translate3d");
   await page.keyboard.press("Space");

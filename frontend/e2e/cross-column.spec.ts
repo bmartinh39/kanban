@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test, visibleBoardFrame } from "./fixtures";
+import { expect, test, visibleBoardFrame, expectKeyboardDropTarget } from "./fixtures";
 
 const orders = [["c1", "c4", "c5"], ["c4", "c1", "c5"], ["c4", "c5", "c1"]];
 const column = (page: Page) => page.getByRole("region", { name: "Planned column", exact: true });
@@ -69,6 +69,7 @@ for (const input of ["pointer", "keyboard"] as const) {
         } else {
           await handle(page).press("Space");
           await expect(handle(page)).toHaveAttribute("aria-pressed", "true");
+          await expectKeyboardDropTarget(page);
           await page.keyboard.press("ArrowRight");
           await expect(column(page)).toHaveClass(/is-over/);
           for (let position = 2; position > index; position--) {
@@ -143,6 +144,7 @@ test("inserts into the current destination order after it has been reordered", a
   await first.scrollIntoViewIfNeeded();
   await first.press("Space");
   await expect(first).toHaveAttribute("aria-pressed", "true");
+  await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("status")).toContainText("Planned, position 2 of 2");
   await page.keyboard.press("Space");

@@ -1,5 +1,5 @@
 import { type Locator, type Page } from "@playwright/test";
-import { expect, test, visibleBoardFrame } from "./fixtures";
+import { expect, test, visibleBoardFrame, expectKeyboardDropTarget } from "./fixtures";
 
 const originalOrder = ["card-c1", "card-c2", "card-c3"];
 const middleOrder = ["card-c2", "card-c1", "card-c3"];
@@ -31,6 +31,7 @@ async function keyboardReorder(page: Page, direction: "ArrowDown" | "ArrowUp", t
   await handle.focus();
   await page.keyboard.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expectKeyboardDropTarget(page);
   for (const target of targets) {
     await page.keyboard.press(direction);
     await expectPreview(page.getByTestId(target));
@@ -130,6 +131,7 @@ test("ignores keyboard boundary moves and cancels a sorting preview with focus r
 
   await first.press("Space");
   await expect(first).toHaveAttribute("aria-pressed", "true");
+  await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowDown");
   await expectPreview(ideas.getByTestId("card-c2"));
   await expectOrder(ideas, originalOrder);
@@ -292,6 +294,7 @@ test("a rejected drop recovers the saved board without replaying the move", asyn
   try {
     await handle.press("Space");
     await expect(handle).toHaveAttribute("aria-pressed", "true");
+    await expectKeyboardDropTarget(page);
     await page.keyboard.press("ArrowRight");
     await expect(planned).toHaveClass(/is-over/);
     await page.keyboard.press("Space");
