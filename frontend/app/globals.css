@@ -175,7 +175,18 @@ dialog textarea { resize: vertical; min-height: 90px; }
   dialog { padding: 24px; }
 }
 .assistant-panel { position: fixed; z-index: 20; right: var(--gutter); top: calc(var(--header-height) + var(--workspace-gap)); bottom: var(--workspace-gap); width: var(--assistant-width); display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 35px #0003; overflow: hidden; }
-.assistant-toggle { display: none; }
+.assistant-toggle { display: none; gap: 7px; margin-left: auto; padding: 8px 10px; }
+.assistant-collapse { margin-left: auto; color: var(--muted); }
+.assistant-collapse:hover { color: var(--text); }
+@media (min-width: 701px) {
+  /* Animate only collapse/expand on desktop, never layout changes across the mobile breakpoint. */
+  .app-shell main { transition: margin-right 220ms ease; }
+  .assistant-panel { transition: transform 220ms ease, visibility 0s; }
+  /* Collapsed: the panel slides out (hidden from focus and assistive tech) and the top-bar launcher reopens it. */
+  .assistant-collapsed main { margin-right: var(--gutter); }
+  .assistant-collapsed .assistant-panel { transform: translateX(calc(100% + var(--gutter))); visibility: hidden; transition: transform 220ms ease, visibility 0s 220ms; }
+  .assistant-collapsed .assistant-toggle { display: flex; }
+}
 .assistant-heading { display: flex; align-items: center; gap: 12px; padding: 22px 22px 0; }
 .assistant-avatar { display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; flex-shrink: 0; border-radius: 12px; background: var(--raised); color: var(--accent); }
 .assistant-heading h2 { font-family: var(--heading-font); margin: 0; font-size: 20px; letter-spacing: -.6px; }
@@ -198,7 +209,7 @@ dialog textarea { resize: vertical; min-height: 90px; }
 @media (max-width: 700px) {
   .app-shell { --header-height: 54px; --workspace-gap: 12px; }
   .app-shell main { margin-right: var(--gutter); }
-  .assistant-toggle { display: flex; gap: 7px; margin-left: auto; padding: 8px 10px; }
+  .assistant-toggle { display: flex; }
   body:has(.assistant-panel:modal) { overflow: hidden; }
   .assistant-panel { display: none; }
   .assistant-panel[open] {

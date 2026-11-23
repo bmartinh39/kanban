@@ -158,6 +158,8 @@ export default function Home() {
   const [deletingList, setDeletingList] = useState<Column | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantCollapsed, setAssistantCollapsed] = useState(false);
+  const assistantLauncher = useRef<HTMLButtonElement>(null);
   const addTrigger = useRef<HTMLButtonElement>(null);
   const boardViewport = useRef<HTMLDivElement>(null);
   const keyboardDrop = useRef<string | null>(null);
@@ -231,12 +233,14 @@ export default function Home() {
   const activeCard = board.flatMap(column => column.cards).find(card => card.id === activeId);
   const addingColumn = board.find(column => column.id === addingTo);
   if (!storage.snapshot) return <main className="board-loading"><h1>Forma</h1>{storage.loading ? <p role="status">Loading your board...</p> : <><p role="alert">{storage.error}</p><button className="primary-button" onClick={() => void storage.load()}>Retry loading board</button></>}</main>;
-  return <div className="app-shell">
+  return <div className={`app-shell${assistantCollapsed ? " assistant-collapsed" : ""}`}>
     <header className="topbar">
       <div className="brand" aria-label="Forma"><span className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></span>forma<span className="brand-period">.</span></div>
-      <button type="button" className="secondary-button assistant-toggle" aria-haspopup="dialog" aria-expanded={assistantOpen} aria-controls="board-assistant" onClick={event => {
+      <button type="button" ref={assistantLauncher} className="secondary-button assistant-toggle" aria-expanded={assistantOpen} aria-controls="board-assistant" onClick={event => {
         event.currentTarget.focus();
-        setAssistantOpen(true);
+        // The same launcher opens the mobile drawer or re-expands the collapsed desktop panel.
+        if (window.matchMedia("(max-width: 700px)").matches) setAssistantOpen(true);
+        else setAssistantCollapsed(false);
       }}><Bot size={17} aria-hidden="true" /> AI Assistant</button>
     </header>
     <main>
@@ -278,7 +282,10 @@ export default function Home() {
           <CardContent card={activeCard} />
         </div>}</DragOverlay>
       </DndContext>
-      <AssistantChat drawerOpen={assistantOpen} onCloseDrawer={() => setAssistantOpen(false)} board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
+      <AssistantChat drawerOpen={assistantOpen} onCloseDrawer={() => setAssistantOpen(false)} collapsed={assistantCollapsed} onCollapse={() => {
+        setAssistantCollapsed(true);
+        requestAnimationFrame(() => assistantLauncher.current?.focus());
+      }} board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
     </main>
     {addingColumn && <AddItemDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={(title, details) => { dispatch({ type: "add", columnId: addingColumn.id, card: { id: crypto.randomUUID(), title, details } }); closeDialog(); }} />}
     {addingList && <AddItemDialog onClose={closeDialog} onAdd={name => { const listId = crypto.randomUUID(); createdList.current = listId; dispatch({ type: "create-list", listId, name }); closeDialog(); }} />}

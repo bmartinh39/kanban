@@ -225,6 +225,7 @@ for (const input of ["pointer", "keyboard"] as const) {
         if (input === "keyboard") {
           await handle.press("Space");
           await expect(handle).toHaveAttribute("aria-pressed", "true");
+          await expectKeyboardDropTarget(page);
           await page.keyboard.press(destination === "Ideas" ? "ArrowDown" : "ArrowRight");
           if (destination === "Ideas") await expectPreview(page.getByTestId("card-c2"));
           else await expect(targetColumn).toHaveClass(/is-over/);
