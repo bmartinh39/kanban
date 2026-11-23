@@ -151,6 +151,9 @@ dialog input, dialog textarea { width: 100%; margin-bottom: 20px; font-size: 13p
 dialog textarea { resize: vertical; min-height: 90px; }
 .optional-label, .required-label { font-size: 10px; font-weight: 400; color: var(--muted); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 5px; }
+.form-error { color: var(--danger); font-size: 12px; line-height: 1.5; margin: 0 0 12px; overflow-wrap: anywhere; }
+.column-header:has(.rename-error) { flex-wrap: wrap; height: auto; min-height: 63px; padding-bottom: 8px; }
+.rename-error { flex-basis: 100%; order: 10; margin: 0; }
 .primary-button, .secondary-button { border-radius: 7px; padding: 11px 16px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 14px; }
 .primary-button { background: var(--accent); border: 1px solid var(--accent); color: var(--page); font-weight: 750; }
 .primary-button:hover:not(:disabled) { background: var(--accent-hover); }
