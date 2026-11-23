@@ -86,12 +86,16 @@ test("new lists and their cards persist, and competing list creation rejects sta
   expect(deleted.revision).toBe(saved.revision + 1);
 });
 
-test("real database preserves card content, names, moves and order on reload", async ({ page }, info) => {
+test("real database preserves card content, priority, names, moves and order on reload", async ({ page }, info) => {
   const title = `Persistent ${info.project.name}`;
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await open(page);
   await add(page, title);
+  const priority = page.getByRole("button", { name: `Priority for ${title}: None`, exact: true });
+  await priority.click();
+  await page.getByRole("menuitemradio", { name: "Medium", exact: true }).click();
+  await expect(page.locator(".save-status")).toHaveText("Saved");
   const handle = page.getByRole("button", { name: `Move ${title}`, exact: true });
   await handle.focus();
   await page.keyboard.press("Space");
@@ -119,7 +123,15 @@ test("real database preserves card content, names, moves and order on reload", a
   await page.reload();
   await expect(page.getByRole("region", { name: "Next up column" }).getByRole("heading", { name: title })).toHaveCount(1);
   expect(await snapshot(page)).toEqual(before);
-  expect(before.columns[1].cards[1]).toMatchObject({ title, details: "Saved context" });
+  expect(before.columns[1].cards[1]).toMatchObject({ title, details: "Saved context", priority: "medium" });
+  const reloadedPriority = page.getByRole("button", { name: `Priority for ${title}: Medium`, exact: true });
+  await expect(reloadedPriority).toHaveAttribute("data-priority", "medium");
+  await reloadedPriority.click();
+  await page.getByRole("menuitemradio", { name: "No priority", exact: true }).click();
+  await expect(page.locator(".save-status")).toHaveText("Saved");
+  await page.reload();
+  await expect(page.getByRole("button", { name: `Priority for ${title}: None`, exact: true })).not.toHaveAttribute("data-priority");
+  expect((await snapshot(page)).columns[1].cards[1]).toEqual({ id: before.columns[1].cards[1].id, title, details: "Saved context" });
   await page.getByRole("button", { name: "Rename Next up", exact: true }).click();
   await page.getByRole("textbox", { name: "Column name", exact: true }).fill("Planned");
   await page.getByRole("textbox", { name: "Column name", exact: true }).press("Enter");

@@ -463,3 +463,44 @@ Three production SQLite scenarios passed in Chromium, covering moves, deletion a
 - The full browser run exercised all three browser projects. It recorded 183 passes, two expected skips for the touch-only case, and one intermittent failure in the Chromium mixed pointer and keyboard reorder test. Its trace showed a drop at the original position with no intervening move announcement. The test now waits for the destination column to become the active drop target before pressing Arrow Up and checks the announced destination before dropping.
 - The corrected test passed all nine runs, three each in Chromium, Firefox and mobile Chromium.
 - The production build passed. The full SQLite run recorded 17 passes and one mobile failure after a keyboard pickup that had the same timing issue. The test now waits for its source column to become the active drop target before pressing Arrow Right. The corrected scenario passed all nine runs across the three browser projects.
+
+## Issue #26 — Card controls and priority
+
+- [x] Add a flush card strip with a dedicated drag handle, six priority choices, and the existing delete confirmation.
+- [x] Save optional priority through the revision-checked board API and migrate existing SQLite boards with neutral cards.
+- [x] Verify the strip at board scale, keyboard and touch interactions, drag within and across lists, and saved priority after reload.
+
+### Follow-up in PR #27: brighter card strip
+
+- [x] Brighten the left drag corner, neutral and six priority tints, and right delete corner without changing their color identity.
+- [x] Verify resting, hover, open-menu, and selected-priority states at desktop and mobile board scale.
+- [x] Run lint, type checking, focused browser checks, and `git diff --check`; record results and limits.
+
+Verification (2026-11-23):
+
+- `npm run lint`, `npm run typecheck`, and `git diff --check` passed.
+- The focused Playwright card-strip and priority cases passed 4/4 in desktop Chromium and mobile Chromium. They cover flush geometry, hover/focus/touch controls, the six-option menu, and applying a tint independently of dragging.
+- Browser plugin not available; regular Playwright verified the rendered board at 1440 x 1000 and 390 x 844 against an isolated temporary database. Resting, hover, open-menu, and selected-medium screenshots showed the brighter strip without clipping, overlap, or layout changes. Page identity and meaningful content passed, with no framework error overlay or console warnings/errors.
+- Live feedback showed the first brightness lift was loaded but too subtle at normal board scale. The resting and hover mixes were strengthened without changing their hues, then verified directly at `http://localhost:3000` with the saved board. The focused Chromium and mobile Chromium cases passed 4/4 again; lint, types, and live console checks remained clean.
+- This is a CSS-only adjustment. Unit tests, Firefox, production build, persistence, coverage, and the broad UI suite were not run under the task-based policy.
+
+### Follow-up in PR #27: clear card priority
+
+- [x] Add a neutral “No priority” menu option that restores the established gray bar.
+- [x] Save the clear action atomically as SQLite `NULL` and return the card without a priority.
+- [x] Verify keyboard, pointer, mobile, API, reducer, and reload persistence behavior.
+
+Verification (2026-11-23):
+
+- `npm ci --no-audit --no-fund` installed independent worktree dependencies without changing the lockfile. Lint, type checking, the production build, and `git diff --check` passed.
+- Five selected unit/component/API/database files passed 107 tests, covering reducer removal of the optional field, API validation, SQLite `NULL`, unchanged clears, and existing board/save callers.
+- The focused priority browser scenario passed in desktop Chromium, Firefox, and mobile Chromium. It verifies the seven menu choices, initial gray selection, keyboard navigation, colored selection, clearing back to `None`, and no drag activation. Firefox crashed before opening a page inside the filesystem sandbox, then passed with its temporary profile outside the sandbox.
+- The focused production SQLite Chromium scenario passed after setting a priority, clearing it, and reloading the card without a priority. Its runner was stopped after the passing scenario hung during teardown; no task server was left running.
+- Browser plugin not available; regular Playwright screenshots at 1440 x 1000 and 390 x 844 showed the neutral option and selected gray swatch without clipping or overlap. Page identity, meaningful content, framework overlay, and console checks passed.
+
+Limits: focused PR follow-up; broad coverage and the full UI/persistence matrices were not run under the task-based policy. No live provider calls.
+
+- Lint, type checking, `git diff --check`, and the production build passed. The selected Vitest run passed 203 tests in 11 files.
+- Playwright passed 25 selected UI cases across desktop Chromium, Firefox, and mobile Chromium. The touch drag test runs only in the mobile project. Testing caught a one-pixel overflow from the original strip styling and a subpixel rounding difference in the geometry assertion. Both passed after correction. Firefox required access outside the filesystem sandbox to create its temporary profile.
+- All six Chromium production persistence cases passed against temporary SQLite. The priority, move, and reload case also passed in Firefox and mobile Chromium. The database tests cover migration of an existing board, invalid priorities, and an unchanged revision when setting the same value again.
+- The Browser extension was unavailable, and the GitHub image request returned HTTP 403. Playwright screenshots at 1440 × 1000 and 390 × 664 verified the documented resting, hover, and open states at board scale with no framework overlays or browser errors. The broad coverage and UI suites were outside the focused checks.
