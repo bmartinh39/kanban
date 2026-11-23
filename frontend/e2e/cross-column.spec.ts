@@ -23,11 +23,10 @@ async function pointerSlot(page: Page, index: number) {
   await target.evaluate(element => element.scrollIntoView({ block: "center", inline: "center" }));
   await target.evaluate((element, index) => {
     // A previous preview can shift the rendered card beyond its actual layout slot.
-    const bottom = window.innerWidth <= 700 ? document.querySelector(".assistant-panel")!.getBoundingClientRect().top : window.innerHeight;
     const rect = element.getBoundingClientRect();
     const transform = new DOMMatrix(getComputedStyle(element).transform);
     const targetY = rect.y - transform.m42 + (index === 2 ? rect.height + 11 : rect.height / 4);
-    window.scrollBy(0, targetY - bottom / 2);
+    window.scrollBy(0, targetY - window.innerHeight / 2);
   }, index);
   const bounds = await target.evaluate(element => {
     const rect = element.getBoundingClientRect();

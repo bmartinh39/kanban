@@ -1,25 +1,42 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Bot, Send } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { Bot, Send, X } from "lucide-react";
 import { parsePlan, prepareActions, type AssistantPlan, type ChatMessage } from "./assistant-commands";
 import { DeleteListDialog } from "./delete-list-dialog";
 import type { Column } from "./board-state";
 import { validRevision } from "./board-commands";
 
-export function AssistantChat({ board, revision, disabled, onRefresh, onApply }: { board: Column[]; revision: number; disabled: boolean; onRefresh: () => void; onApply: (snapshot: Column[], plan: AssistantPlan, revision: number) => Promise<string> }) {
+const mobileViewport = "(max-width: 700px)";
+
+function subscribeToViewport(onChange: () => void) {
+  const query = window.matchMedia(mobileViewport);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+export function AssistantChat({ drawerOpen, onCloseDrawer, board, revision, disabled, onRefresh, onApply }: { drawerOpen: boolean; onCloseDrawer: () => void; board: Column[]; revision: number; disabled: boolean; onRefresh: () => void; onApply: (snapshot: Column[], plan: AssistantPlan, revision: number) => Promise<string> }) {
+  const mobile = useSyncExternalStore(subscribeToViewport, () => window.matchMedia(mobileViewport).matches, () => false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmation, setConfirmation] = useState<{ columns: Column[]; batch: boolean; resolve: (confirmed: boolean) => void } | null>(null);
+  const drawer = useRef<HTMLDialogElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);
   const pending = useRef<AbortController | null>(null);
   useEffect(() => () => pending.current?.abort(), []);
+  useLayoutEffect(() => {
+    const dialog = drawer.current;
+    if (!dialog) return;
+    if (!drawerOpen && dialog.open) dialog.close();
+    // A pending confirmation must stay above the assistant in the modal stack.
+    if (drawerOpen && !dialog.open && !confirmation) dialog.showModal();
+  }, [mobile, drawerOpen, confirmation]);
   useEffect(() => {
-    if (log.current) log.current.scrollTop = log.current.scrollHeight;
-  }, [messages, busy, error]);
+    if ((!mobile || drawerOpen) && log.current) log.current.scrollTop = log.current.scrollHeight;
+  }, [mobile, drawerOpen, messages, busy, error]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!draft.trim() || busy || disabled) return;
@@ -66,10 +83,13 @@ export function AssistantChat({ board, revision, disabled, onRefresh, onApply }:
   function confirmDeletion(confirmed: boolean) {
     confirmation?.resolve(confirmed);
     setConfirmation(null);
-    composer.current?.focus({ preventScroll: true });
+    if (!mobile || drawerOpen) composer.current?.focus({ preventScroll: true });
   }
-  return <section id="board-assistant" className="assistant-panel" aria-label="Board assistant">
-      <header className="assistant-heading"><span className="assistant-avatar" aria-hidden="true"><Bot size={25} /></span><div><h2>AI Assistant</h2></div></header>
+  const chat = <>
+      <header className="assistant-heading">
+        <span className="assistant-avatar" aria-hidden="true"><Bot size={25} /></span><div><h2>AI Assistant</h2></div>
+        {mobile && <button type="button" className="icon-button assistant-close" aria-label="Close assistant" onClick={onCloseDrawer}><X size={20} aria-hidden="true" /></button>}
+      </header>
       <p className="assistant-context">Create, edit, or move cards. Create, rename, or delete lists. List deletion always asks for confirmation.</p>
       <div ref={log} className="assistant-log" role="log" aria-label="Assistant conversation" aria-live="polite">
         {!messages.length && <div className="assistant-welcome">Try asking the assistant to create a card in an existing list.</div>}
@@ -86,6 +106,12 @@ export function AssistantChat({ board, revision, disabled, onRefresh, onApply }:
         }} />
         <div><button className="primary-button" disabled={busy || disabled || !draft.trim()}>Send <Send size={14} /></button></div>
       </form>
-      {confirmation && <DeleteListDialog columns={confirmation.columns} batch={confirmation.batch} onClose={() => confirmDeletion(false)} onDelete={() => confirmDeletion(true)} />}
-    </section>;
+  </>;
+  const panelProps = { id: "board-assistant", className: "assistant-panel", "aria-label": "Board assistant" };
+  return <>
+    {mobile ? <dialog {...panelProps} ref={drawer} onCancel={event => { event.preventDefault(); onCloseDrawer(); }} onClick={event => {
+      if (event.target === event.currentTarget) onCloseDrawer();
+    }}>{chat}</dialog> : <section {...panelProps}>{chat}</section>}
+    {confirmation && <DeleteListDialog columns={confirmation.columns} batch={confirmation.batch} onClose={() => confirmDeletion(false)} onDelete={() => confirmDeletion(true)} />}
+  </>;
 }

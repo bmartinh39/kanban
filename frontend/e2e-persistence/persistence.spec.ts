@@ -1,3 +1,4 @@
+import { assistantPanel, revealAssistant } from "../e2e/assistant-controls";
 import { expect, test, type Page } from "@playwright/test";
 import type { BoardSnapshot } from "../app/board-commands";
 
@@ -172,6 +173,7 @@ test("controlled assistant proposals commit to the real database and stale propo
     revision: route.request().postDataJSON().revision,
     message: "Done", operations: [{ type: "create", list: "Ideas", sourceList: null, card: null, title, details: "Saved by assistant" }],
   } }));
+  await revealAssistant(page);
   await page.getByLabel("What would you like to change?").fill("Create a card");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByRole("log")).toContainText(`Created "${title}"`);
@@ -187,9 +189,10 @@ test("controlled assistant proposals commit to the real database and stale propo
     revision: route.request().postDataJSON().revision, message: "Done",
     operations: [{ type: "create", list: "Ideas", sourceList: null, card: null, title: "Must not save", details: null }],
   } }));
+  await revealAssistant(other);
   await other.getByLabel("What would you like to change?").fill("Create a card");
   await other.getByRole("button", { name: "Send", exact: true }).click();
-  await expect(other.getByRole("region", { name: "Board assistant", exact: true }).getByRole("alert")).toContainText("another tab");
+  await expect(assistantPanel(other).getByRole("alert")).toContainText("another tab");
   expect((await snapshot(other)).columns.flatMap(column => column.cards).some(card => card.title === "Must not save")).toBe(false);
   await other.close();
 });

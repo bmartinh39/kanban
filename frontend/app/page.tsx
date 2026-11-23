@@ -3,7 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDndContext, useDroppable, useSensor, useSensors, type DragCancelEvent, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Check, Columns3, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Bot, Check, Columns3, GripVertical, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
 import { columnCoordinates } from "./keyboard-coordinates";
 import { boardCollisionDetection } from "./drag-collision";
 import { createDragAnnouncements, getCardMove } from "./drag-announcements";
@@ -156,6 +156,7 @@ export default function Home() {
   const deletedCardColumn = useRef<string | null>(null);
   const [deletingList, setDeletingList] = useState<Column | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const addTrigger = useRef<HTMLButtonElement>(null);
   const boardViewport = useRef<HTMLDivElement>(null);
   const keyboardDrop = useRef<string | null>(null);
@@ -232,6 +233,10 @@ export default function Home() {
   return <div className="app-shell">
     <header className="topbar">
       <div className="brand" aria-label="Forma"><span className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></span>forma<span className="brand-period">.</span></div>
+      <button type="button" className="secondary-button assistant-toggle" aria-haspopup="dialog" aria-expanded={assistantOpen} aria-controls="board-assistant" onClick={event => {
+        event.currentTarget.focus();
+        setAssistantOpen(true);
+      }}><Bot size={17} aria-hidden="true" /> AI Assistant</button>
     </header>
     <main>
       <div className="board-toolbar">
@@ -243,10 +248,7 @@ export default function Home() {
       <DndContext
         id="project-board"
         sensors={sensors}
-        collisionDetection={args => {
-          const panelTop = window.innerWidth <= 700 ? document.querySelector(".assistant-panel")?.getBoundingClientRect().top : undefined;
-          return boardCollisionDetection(args, boardViewport.current?.getBoundingClientRect(), new DOMRect(0, 0, window.innerWidth, panelTop ?? window.innerHeight));
-        }}
+        collisionDetection={args => boardCollisionDetection(args, boardViewport.current?.getBoundingClientRect(), new DOMRect(0, 0, window.innerWidth, window.innerHeight))}
         onDragStart={event => setActiveId(String(event.active.id))}
         onDragCancel={handleDragCancel}
         onDragEnd={handleDragEnd}
@@ -275,7 +277,7 @@ export default function Home() {
           <CardContent card={activeCard} />
         </div>}</DragOverlay>
       </DndContext>
-      <AssistantChat board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
+      <AssistantChat drawerOpen={assistantOpen} onCloseDrawer={() => setAssistantOpen(false)} board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
     </main>
     {addingColumn && <AddItemDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={(title, details) => { dispatch({ type: "add", columnId: addingColumn.id, card: { id: crypto.randomUUID(), title, details } }); closeDialog(); }} />}
     {addingList && <AddItemDialog onClose={closeDialog} onAdd={name => { const listId = crypto.randomUUID(); createdList.current = listId; dispatch({ type: "create-list", listId, name }); closeDialog(); }} />}
