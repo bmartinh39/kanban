@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
-import { Bot, Send, X } from "lucide-react";
+import { Bot, PanelRightClose, Send, X } from "lucide-react";
 import { parsePlan, prepareActions, type AssistantPlan, type ChatMessage } from "./assistant-commands";
 import { DeleteListDialog } from "./delete-list-dialog";
 import type { Column } from "./board-state";
@@ -15,7 +15,7 @@ function subscribeToViewport(onChange: () => void) {
   return () => query.removeEventListener("change", onChange);
 }
 
-export function AssistantChat({ drawerOpen, onCloseDrawer, board, revision, disabled, onRefresh, onApply }: { drawerOpen: boolean; onCloseDrawer: () => void; board: Column[]; revision: number; disabled: boolean; onRefresh: () => void; onApply: (snapshot: Column[], plan: AssistantPlan, revision: number) => Promise<string> }) {
+export function AssistantChat({ drawerOpen, onCloseDrawer, collapsed, onCollapse, board, revision, disabled, onRefresh, onApply }: { drawerOpen: boolean; onCloseDrawer: () => void; collapsed: boolean; onCollapse: () => void; board: Column[]; revision: number; disabled: boolean; onRefresh: () => void; onApply: (snapshot: Column[], plan: AssistantPlan, revision: number) => Promise<string> }) {
   const mobile = useSyncExternalStore(subscribeToViewport, () => window.matchMedia(mobileViewport).matches, () => false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -37,6 +37,12 @@ export function AssistantChat({ drawerOpen, onCloseDrawer, board, revision, disa
   useEffect(() => {
     if ((!mobile || drawerOpen) && log.current) log.current.scrollTop = log.current.scrollHeight;
   }, [mobile, drawerOpen, messages, busy, error]);
+  const wasCollapsed = useRef(collapsed);
+  useEffect(() => {
+    // Reopening the desktop panel returns focus to the composer.
+    if (wasCollapsed.current && !collapsed) composer.current?.focus({ preventScroll: true });
+    wasCollapsed.current = collapsed;
+  }, [collapsed]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!draft.trim() || busy || disabled) return;
@@ -88,7 +94,8 @@ export function AssistantChat({ drawerOpen, onCloseDrawer, board, revision, disa
   const chat = <>
       <header className="assistant-heading">
         <span className="assistant-avatar" aria-hidden="true"><Bot size={25} /></span><div><h2>AI Assistant</h2></div>
-        {mobile && <button type="button" className="icon-button assistant-close" aria-label="Close assistant" onClick={onCloseDrawer}><X size={20} aria-hidden="true" /></button>}
+        {mobile ? <button type="button" className="icon-button assistant-close" aria-label="Close assistant" onClick={onCloseDrawer}><X size={20} aria-hidden="true" /></button>
+          : <button type="button" className="icon-button assistant-collapse" aria-label="Collapse assistant" aria-expanded={!collapsed} aria-controls="board-assistant" onClick={onCollapse}><PanelRightClose size={18} aria-hidden="true" /></button>}
       </header>
       <p className="assistant-context">Create, edit, or move cards. Create, rename, or delete lists. List deletion always asks for confirmation.</p>
       <div ref={log} className="assistant-log" role="log" aria-label="Assistant conversation" aria-live="polite">

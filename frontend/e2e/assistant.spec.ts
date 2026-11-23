@@ -206,6 +206,36 @@ test("desktop assistant stays visible, is keyboard accessible, and fits the view
   await expect(panel).toBeVisible();
 });
 
+test("desktop assistant collapses to a top-bar launcher and reopens with its conversation and draft", async ({ page }) => {
+  test.skip(page.viewportSize()!.width <= 700);
+  await page.route("**/api/assistant", route => route.fulfill({ json: {
+    message: "Which card do you mean?", operations: [], revision: route.request().postDataJSON().revision,
+  } }));
+  await openChat(page);
+  const panel = assistantPanel(page);
+  const launcher = assistantLauncher(page);
+  const collapse = panel.getByRole("button", { name: "Collapse assistant" });
+  const boardWidth = (await page.getByRole("main").boundingBox())!.width;
+  await expect(collapse).toHaveAttribute("aria-expanded", "true");
+  await send(page, "Move that card");
+  await expect(panel.getByRole("log")).toContainText("Which card do you mean?");
+  await panel.getByRole("textbox").fill("Next draft");
+
+  await collapse.click();
+  await expect(panel).toBeHidden();
+  await expect(launcher).toBeFocused();
+  await expect(launcher).toHaveAttribute("aria-expanded", "false");
+  await expect.poll(async () => (await page.getByRole("main").boundingBox())!.width).toBeGreaterThan(boardWidth + 300);
+
+  await launcher.press("Enter");
+  await expect(panel).toBeVisible();
+  await expect(launcher).toBeHidden();
+  await expect(panel.getByRole("textbox")).toBeFocused();
+  await expect(panel.getByRole("textbox")).toHaveValue("Next draft");
+  await expect(panel.getByRole("log")).toContainText("Which card do you mean?");
+  await expect.poll(async () => (await page.getByRole("main").boundingBox())!.width).toBeCloseTo(boardWidth, 0);
+});
+
 test("mobile drawer opens over the board and keeps the conversation and draft after closing", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 664 });
   const errors: string[] = [];

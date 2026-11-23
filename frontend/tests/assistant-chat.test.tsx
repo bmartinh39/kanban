@@ -84,7 +84,7 @@ describe("assistant chat", () => {
     const fetcher = vi.fn();
     vi.stubGlobal("fetch", fetcher);
     const user = userEvent.setup();
-    render(<AssistantChat drawerOpen={false} onCloseDrawer={vi.fn()} board={initialBoard} revision={0} disabled onRefresh={vi.fn()} onApply={vi.fn()} />);
+    render(<AssistantChat drawerOpen={false} onCloseDrawer={vi.fn()} collapsed={false} onCollapse={vi.fn()} board={initialBoard} revision={0} disabled onRefresh={vi.fn()} onApply={vi.fn()} />);
     const input = screen.getByLabelText("What would you like to change?");
     await user.type(input, "Create a card{Enter}");
     expect(fetcher).not.toHaveBeenCalled();
