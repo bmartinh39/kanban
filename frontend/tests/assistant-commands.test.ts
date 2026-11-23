@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parsePlan, prepareActions, type AssistantOperation } from "../app/assistant-commands";
+import { boundedHistory, parsePlan, prepareActions, type AssistantOperation, type ChatMessage } from "../app/assistant-commands";
+import { chatHistoryByteLimit, chatHistoryLimit, chatMessageCharacterLimit, clip, utf8Bytes } from "../app/limits";
 import { boardReducer, initialBoard } from "../app/board-state";
 
 const operation = (fields: Partial<AssistantOperation>): AssistantOperation => ({
@@ -121,5 +122,43 @@ describe("assistant commands", () => {
     { message: "x", operations: Array(21).fill(operation({})) },
   ])("rejects malformed or unsupported plans: %j", value => {
     expect(() => parsePlan(value)).toThrow("invalid");
+  });
+});
+
+describe("bounded chat history (issue #16)", () => {
+  const user = (content: string): ChatMessage => ({ role: "user", content });
+  const assistant = (content: string): ChatMessage => ({ role: "assistant", content });
+  it("clips a long clarification so the follow-up request stays valid", () => {
+    const history = boundedHistory([user("Move it"), assistant("Which card? ".repeat(800)), user("The first one")]);
+    expect(history.map(message => message.role)).toEqual(["user", "assistant", "user"]);
+    expect(history[1].content.length).toBe(chatMessageCharacterLimit);
+    expect(history[1].content.endsWith("…")).toBe(true);
+    expect(history[2].content).toBe("The first one");
+  });
+  it("keeps the newest messages within the count window and starts with the user", () => {
+    const conversation = Array.from({ length: 31 }, (_, index) => index % 2 ? assistant(`a${index}`) : user(`u${index}`));
+    const history = boundedHistory(conversation);
+    expect(history.length).toBeLessThanOrEqual(chatHistoryLimit);
+    expect(history[0].role).toBe("user");
+    expect(history.at(-1)).toEqual(user("u30"));
+  });
+  it("respects the UTF-8 byte budget for multibyte content", () => {
+    const conversation = Array.from({ length: 19 }, (_, index) => index % 2 ? assistant("€".repeat(3_999)) : user("€".repeat(3_999)));
+    const history = boundedHistory(conversation);
+    expect(utf8Bytes(history.map(message => message.content).join(""))).toBeLessThanOrEqual(chatHistoryByteLimit);
+    expect(history.length).toBeGreaterThan(1);
+    expect(history[0].role).toBe("user");
+    expect(history.at(-1)!.role).toBe("user");
+  });
+  it("never splits a surrogate pair when clipping", () => {
+    const clipped = clip("a" + "😀".repeat(10), 4);
+    expect(clipped).toBe("a😀…");
+    expect(new TextDecoder().decode(new TextEncoder().encode(clipped))).toBe(clipped);
+  });
+  it("keeps outcome messages concise for very long card titles", () => {
+    const title = "Long title ".repeat(1_800);
+    const { message } = prepareActions(initialBoard, { message: "", operations: [operation({ list: "Ideas", title })] });
+    expect(message.length).toBeLessThan(200);
+    expect(boundedHistory([user("Create it"), assistant(message), user("Thanks")])[1].content).toBe(message);
   });
 });

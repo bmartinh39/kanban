@@ -14,6 +14,7 @@ import { AssistantChat } from "./assistant-chat";
 import { DeleteCardDialog, DeleteListDialog } from "./delete-list-dialog";
 import { prepareActions, type AssistantPlan } from "./assistant-commands";
 import { CardPriorityButton } from "./card-priority-button";
+import { fieldCharacterLimit } from "./limits";
 
 
 const emptyBoard: Column[] = [];
@@ -40,7 +41,7 @@ function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete, onPriority
     <div className="card-strip">
       <button type="button" ref={setActivatorNodeRef} className="drag-handle" {...attributes} {...listeners} aria-label={`Move ${card.title}`} />
       <CardPriorityButton card={card} busy={busy} onChange={onPriority} />
-      <button type="button" className="delete-button" disabled={busy} onClick={event => onDelete(event.currentTarget)} aria-label={`Delete ${card.title}`}>
+      <button type="button" className="delete-button" aria-disabled={busy} onClick={event => { if (!busy) onDelete(event.currentTarget); }} aria-label={`Delete ${card.title}`}>
         <Trash2 size={14} aria-hidden="true" />
       </button>
     </div>
@@ -82,7 +83,7 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
         <button className="icon-button" disabled={!name.trim()} aria-label="Save column name"><Check size={15} /></button>
         <button type="button" className="icon-button" aria-label="Cancel rename" onClick={() => finishRename(false)}><X size={15} /></button>
       </form> : <><h2>{column.name}</h2><span className="column-count">{column.cards.length}</span><button ref={renameButton} aria-disabled={busy} className="icon-button rename-button" aria-label={`Rename ${column.name}`} onClick={() => { if (busy) return; setName(column.name); setRenaming(true); }}><Pencil size={13} /></button></>}
-      <button className="icon-button list-delete" disabled={busy || renaming} aria-label={`Delete list ${column.name}`} onClick={event => onDeleteList(event.currentTarget)}><Trash2 size={14} /></button>
+      <button className="icon-button list-delete" disabled={renaming} aria-disabled={busy} aria-label={`Delete list ${column.name}`} onClick={event => { if (!busy) onDeleteList(event.currentTarget); }}><Trash2 size={14} /></button>
     </header>
     <div className="card-stack" style={{ paddingBottom: gapHeight }}>
       {inserting && <div className="insertion-preview" aria-hidden="true" style={{ top: insertionTop, height: gapHeight - 11 }} />}
@@ -128,7 +129,7 @@ function AddItemDialog({ columnName, onClose, onAdd }: { columnName?: string; on
       <div className="dialog-heading"><h2 id={titleId}>{isList ? "Add a list" : "Add a card"}</h2><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose}><X size={20} /></button></div>
       {!isList && <p className="dialog-subtitle">List <strong>{columnName}</strong></p>}
       <label htmlFor="item-title">{isList ? "List name" : "Title"} <span className="required-label">Required</span></label>
-      <input id="item-title" ref={titleInput} placeholder={isList ? "What is this stage called?" : "What needs to happen?"} value={title} onChange={event => setTitle(event.target.value)} maxLength={20000} required />
+      <input id="item-title" ref={titleInput} placeholder={isList ? "What is this stage called?" : "What needs to happen?"} value={title} onChange={event => setTitle(event.target.value)} maxLength={fieldCharacterLimit} required />
       {!isList && <><label htmlFor="card-details">Details <span className="optional-label">Optional</span></label>
       <textarea id="card-details" placeholder="A little context goes a long way..." value={details} onChange={event => setDetails(event.target.value)} rows={4} /></>}
       <div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={!title.trim()}>{isList ? "Create list" : "Add card"} <Plus size={16} /></button></div>

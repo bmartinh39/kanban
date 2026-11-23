@@ -1,5 +1,6 @@
 import { InvalidCommand } from "../board-commands";
 import { BoardConflict } from "./db/repository";
+import { requestCharacterLimit } from "../limits";
 
 export function json(value: unknown, status = 200) {
   return Response.json(value, { status, headers: { "Cache-Control": "no-store" } });
@@ -14,7 +15,7 @@ export async function readBody(request: Request): Promise<Record<string, unknown
   if (origin && origin !== expectedOrigin) throw new HttpError(403, "This request must come from the board application.");
   if (request.headers.get("sec-fetch-site") === "cross-site") throw new HttpError(403, "This request must come from the board application.");
   const raw = await request.text();
-  if (raw.length > 200_000) throw new HttpError(413, "The board or conversation is too large.");
+  if (raw.length > requestCharacterLimit) throw new HttpError(413, "The board or conversation is too large.");
   let body: unknown;
   try { body = JSON.parse(raw); } catch { throw new HttpError(400, "Send valid JSON."); }
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new HttpError(400, "Send a valid request.");

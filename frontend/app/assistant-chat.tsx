@@ -2,7 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Bot, PanelRightClose, Send, X } from "lucide-react";
-import { parsePlan, prepareActions, type AssistantPlan, type ChatMessage } from "./assistant-commands";
+import { boundedHistory, parsePlan, prepareActions, type AssistantPlan, type ChatMessage } from "./assistant-commands";
+import { chatMessageCharacterLimit } from "./limits";
 import { DeleteListDialog } from "./delete-list-dialog";
 import type { Column } from "./board-state";
 import { validRevision } from "./board-commands";
@@ -58,7 +59,7 @@ export function AssistantChat({ drawerOpen, onCloseDrawer, collapsed, onCollapse
       const response = await fetch("/api/assistant", {
         method: "POST", headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ revision, messages: conversation.slice(-19) }),
+        body: JSON.stringify({ revision, messages: boundedHistory(conversation) }),
       });
       const result = await response.json();
       if (response.status === 409) onRefresh();
@@ -106,7 +107,7 @@ export function AssistantChat({ drawerOpen, onCloseDrawer, collapsed, onCollapse
       {error && <p role="alert" className="assistant-error">{error}</p>}
       <form className="assistant-form" onSubmit={submit}>
         <label htmlFor="assistant-request">What would you like to change?</label>
-        <textarea ref={composer} id="assistant-request" value={draft} maxLength={4000} rows={3} placeholder="Tell me what needs to happen..." onChange={event => setDraft(event.target.value)} onKeyDown={event => {
+        <textarea ref={composer} id="assistant-request" value={draft} maxLength={chatMessageCharacterLimit} rows={3} placeholder="Tell me what needs to happen..." onChange={event => setDraft(event.target.value)} onKeyDown={event => {
           if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
           event.preventDefault();
           if (!event.repeat) event.currentTarget.form?.requestSubmit();

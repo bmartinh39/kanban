@@ -40,7 +40,7 @@ h1, h2 { font-family: var(--heading-font); }
 .board-scroll { padding-bottom: 12px; border-radius: 12px; }
 .board-grid { --column-gap: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: var(--column-gap); align-items: start; }
 .column { min-width: 0; scroll-margin-top: 20px; }
-.list-delete:hover { color: var(--danger); background: var(--danger-surface); }
+.list-delete:not([aria-disabled="true"]):hover { color: var(--danger); background: var(--danger-surface); }
 .empty-board { padding: 48px 24px; border: 1px dashed var(--line); border-radius: 12px; text-align: center; color: var(--muted); }
 .column { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 0 11px 12px; transition: background .2s, border-color .2s; display: flex; flex-direction: column; }
 .column.is-over { background: #23312f; border-color: var(--accent); }
@@ -69,7 +69,8 @@ h1, h2 { font-family: var(--heading-font); }
 .drag-handle { border-start-start-radius: inherit; background: linear-gradient(125deg, #8af2d985, #43c4ca60); cursor: grab; }
 .drag-handle:hover, .drag-handle:focus-visible, .drag-preview .drag-handle { background: linear-gradient(125deg, #c0ffe7ed, #7af3f5cc); }
 .drag-handle:active { cursor: grabbing; }
-.drag-handle[aria-disabled="true"], .priority-bar[aria-disabled="true"] { cursor: default; }
+/* Saves mark controls inert without dimming them, so other cards do not flicker. */
+.card-strip > [aria-disabled="true"], .list-delete[aria-disabled="true"] { cursor: default; }
 [data-priority="low"] { --priority-color: #6bfbb1; }
 [data-priority="normal"] { --priority-color: #4dbbff; }
 [data-priority="medium"] { --priority-color: #fbca69; }
@@ -86,7 +87,7 @@ h1, h2 { font-family: var(--heading-font); }
   color: #101216;
 }
 .delete-button { border-start-end-radius: inherit; background: linear-gradient(135deg, #d29ab765, #68445ab3); color: #ffd0d9; }
-.delete-button:not(:disabled):hover { background: linear-gradient(135deg, #ffb5b5dc, #f47a9bc7); color: #211018; }
+.delete-button:not([aria-disabled="true"]):hover { background: linear-gradient(135deg, #ffb5b5dc, #f47a9bc7); color: #211018; }
 @media (hover: hover) and (pointer: fine) {
   .card-strip :is(.priority-bar, .delete-button) svg { opacity: 0; }
   .priority-bar:is(:hover, :focus-visible, [aria-expanded="true"]) svg,

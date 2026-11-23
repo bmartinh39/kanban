@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { Page } from "@playwright/test";
-import { expect, test, visibleBoardFrame } from "./fixtures";
+import { expect, test, visibleBoardFrame, expectKeyboardDropTarget } from "./fixtures";
 
 const list = (page: Page, name: string) => page.getByRole("region", { name: `${name} column`, exact: true });
 async function createList(page: Page, name: string) {
@@ -161,6 +161,7 @@ for (const input of ["pointer", "keyboard"] as const) {
         await handle().focus();
         await page.keyboard.press("Space");
         await expect(handle()).toHaveAttribute("aria-pressed", "true");
+        await expectKeyboardDropTarget(page);
         await page.keyboard.press(targetName === "Released" ? "ArrowRight" : "ArrowLeft");
       } else {
         await handle().evaluate(element => element.scrollIntoView({ block: "start" }));
