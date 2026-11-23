@@ -59,20 +59,13 @@ By default, a single agent works in the main checkout on its own task branch; no
 
 ## Verification strategy
 
-Follow `TESTING.md` for the task-to-test matrix and commands (run from `frontend`). This policy supersedes blanket full-suite requirements in historical `PLAN.md` entries and the original MVP strategy below.
+Follow `TESTING.md` (run from `frontend`). Agents run the fast task loop; CI runs the full gate on every pull request. Do not run the full gate locally unless CI is unavailable or a CI failure needs reproducing.
 
-- During iteration, run named unit/component/API tests without coverage and only the browser scenarios affected by the change. Use `npm run test:watch -- <test-file>` for repeated edits. Include callers/shared contracts when selecting tests; do not rely on changed filenames alone.
-- Before completing a code task, run lint, type checking, the affected tests, and `git diff --check`. Documentation-only changes need link/command/diff review, not application suites. Test-tooling changes need checks of the changed runner and isolation behavior.
-- Start browser checks with focused Chromium scenarios. Add mobile for responsive layout, scrolling, touch, or docked controls; add Firefox for drag/drop, focus, keyboard, native dialogs, animation, or browser-specific behavior. Pure server logic needs no browser run unless its UI contract changes.
-- Run focused real-SQLite persistence browser checks for storage, mutation/revision handling, assistant commit integration, or startup changes. Build once first. Do not build or run persistence tests for a CSS/text-only fix.
-- Before merging a substantive code branch or releasing, run lint, types, full coverage with existing thresholds, all UI browser projects, one production build, and the persistence suite in Chromium. Run all persistence browser projects when browser-sensitive persistence interactions change. For a small isolated fix, focused completion checks suffice; document the scope and omitted broad suites.
-- After a passing check, rerun it only when later changes can affect its result. Fixes require the failing regression plus related behavior, not an automatic restart of the entire checklist. Leave/restart the local server only when application work requires a user handoff, not for documentation/test-strategy tasks.
-
-- Use the same contract tests for every provider, including model/key selection, configuration failures, malformed output, refusals, and upstream errors. Unit and browser suites must use controlled responses rather than making paid inference calls.
-- Select browser projects using the policy above. Keep pointer coordinates within the actual visible board frame; scrolling and sorting previews can invalidate earlier measurements.
-- For a live provider smoke test, use synthetic board data, the explicitly selected model, and the server route. Report live-provider checks separately from mocked coverage. Do not infer that another adapter works live from one provider's success.
-- Start the local app server with outbound HTTPS access when handing off a working live assistant. A server launched inside a network-restricted sandbox can serve the board while all AI requests fail; HTTP readiness and mocked browser tests do not verify provider connectivity.
-- Check `git diff --check` and verify no secret values are staged before committing. Record meaningful verification and known limitations in `PLAN.md`; keep `README.md` concise.
+- Use the same contract tests for every provider, including model/key selection, configuration failures, malformed output, refusals, and upstream errors. Automated tests use controlled responses, never paid inference.
+- Keep pointer coordinates within the actual visible board frame; scrolling and sorting previews can invalidate earlier measurements.
+- For a live provider smoke test, use synthetic board data, the explicitly selected model, and the server route. Report it separately from mocked coverage. A server launched inside a network-restricted sandbox can serve the board while all AI requests fail.
+- Start or restart the local app server only when handing off application work that the user needs to try.
+- Check `git diff --check` and verify no secret values are staged before committing. Put verification results and known limitations in the pull request description, not `PLAN.md`; keep `README.md` concise.
 
 ## Color Scheme
 
@@ -83,6 +76,8 @@ Follow `TESTING.md` for the task-to-test matrix and commands (run from `frontend
 - Gray Text: `#888888` - supporting text, labels
 
 ## Strategy
+
+This was the original MVP process and is complete. For follow-up work, use `TESTING.md` for verification.
 
 1. Write plan with success criteria for each phase to be checked off. Include project scaffolding, including .gitignore, and rigorous unit testing.
 2. Execute the plan ensuring all critiera are met

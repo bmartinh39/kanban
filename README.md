@@ -22,7 +22,7 @@ AI needs outbound HTTPS from the Node.js server. If it cannot reach the provider
 
 The assistant can create, edit, and move cards, and create, rename, or delete lists. List deletion always asks for confirmation, including empty lists; Cancel leaves the whole request unapplied. To add cards to a newly created list, send a follow-up request. Providers implement `AssistantProvider.generatePlan`; current OpenAI/OpenRouter protocols live in `app/server/assistant/`. Proposals use the saved board revision and commit atomically. Recent chat and board content go to the selected provider with `store: false`; upstream retention depends on the provider.
 
-For task-based checks and full verification, see [TESTING.md](TESTING.md). During development, from `frontend`:
+For which checks to run, see [TESTING.md](TESTING.md); CI runs the full suite on pull requests. During development, from `frontend`:
 
 ```powershell
 npm run lint
