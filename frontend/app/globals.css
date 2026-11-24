@@ -126,7 +126,15 @@ h1, h2 { font-family: var(--heading-font); }
 .priority-swatch:not([data-priority]) { background: var(--priority-none); }
 .card-content { padding: 10px 17px 17px; }
 .task-card h3 { font-size: 13px; font-weight: 600; line-height: 1.55; margin: 0; letter-spacing: -.1px; }
-.task-card p { margin: 6px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.8; }
+.task-card p { margin: 6px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.8; white-space: pre-wrap; }
+/* Inline editing (issue #43): the text and its editor share the card's surface and type, so switching is
+   seamless. A faint wash that does not shift layout marks the editable text on hover and while editing. */
+.editable-text { cursor: text; border-radius: 4px; transition: background .15s, box-shadow .15s; }
+.editable-text:hover, .is-editing :is(h3, p):focus-within { background: #ffffff0f; box-shadow: 0 0 0 4px #ffffff0f; border-radius: 4px; }
+.editable-text:focus-visible { outline-offset: 3px; }
+.card-editor { display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; line-height: inherit; resize: none; overflow: hidden; outline: none; caret-color: var(--accent); }
+.card-editor::placeholder { color: var(--muted); opacity: .6; }
+.task-card .card-edit-error { margin: 8px 0 0; color: var(--danger); font-size: 12px; line-height: 1.5; }
 .is-dragging { opacity: .3; outline: 1px dashed var(--accent); outline-offset: -1px; }
 .drag-preview { transform: rotate(3deg); box-shadow: 0 15px 35px #0007; cursor: grabbing; }
 .add-card { margin-top: 12px; border: 1px solid var(--line); border-radius: 7px; display: flex; align-items: center; gap: 7px; background: transparent; color: var(--muted); font-size: 11px; padding: 9px 7px; justify-content: center; width: 100%; }
