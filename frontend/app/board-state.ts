@@ -1,4 +1,4 @@
-export const cardPriorities = ["low", "normal", "medium", "high", "urgent", "critical"] as const;
+export const cardPriorities = ["low", "medium", "high", "urgent"] as const;
 export type CardPriority = typeof cardPriorities[number];
 export type Card = { id: string; title: string; details: string; priority?: CardPriority };
 export type Column = { id: string; name: string; cards: Card[] };

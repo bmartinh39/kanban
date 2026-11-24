@@ -197,19 +197,23 @@ test("opens priority independently of dragging and applies or clears the tint be
   const menu = page.getByRole("menu", { name: /^Priority for / });
   const initialBounds = await card.boundingBox();
   await expect(priority).toHaveAccessibleName(/: None$/);
+  // No priority shows no colored bar; its "+ Priority" hint appears on hover and always on touch (issue #44).
+  const hint = priority.locator(".priority-add");
+  await expect(hint).toHaveText("Priority");
   if (info.project.name === "mobile") {
-    await expect(priority.locator("svg")).toHaveCSS("opacity", "1");
+    await expect(hint).toHaveCSS("opacity", "1");
     await priority.tap();
   } else {
-    const resting = await priority.evaluate(element => getComputedStyle(element).backgroundImage);
-    await expect(priority.locator("svg")).toHaveCSS("opacity", "0");
+    const resting = await priority.evaluate(element => getComputedStyle(element).backgroundColor);
+    await expect(hint).toHaveCSS("opacity", "0");
+    await page.getByTestId("card-c1").getByRole("heading").hover();
+    await expect(hint).toHaveCSS("opacity", "1");
     await priority.hover();
-    await expect(priority).not.toHaveCSS("background-image", resting);
-    await expect(priority.locator("svg")).toHaveCSS("opacity", "1");
+    await expect(priority).not.toHaveCSS("background-color", resting);
     await priority.click();
   }
 
-  await expect(menu.getByRole("menuitemradio")).toHaveText(["No priority", "Low", "Normal", "Medium", "High", "Urgent", "Critical"]);
+  await expect(menu.getByRole("menuitemradio")).toHaveText(["No priority", "Low", "Medium", "High", "Urgent"]);
   await expect(menu.getByRole("menuitemradio", { name: "No priority" })).toBeFocused();
   const anchorBounds = (await priority.boundingBox())!;
   const menuBounds = (await menu.boundingBox())!;
@@ -226,12 +230,13 @@ test("opens priority independently of dragging and applies or clears the tint be
     } else {
       await page.keyboard.press("ArrowDown");
       await page.keyboard.press("ArrowDown");
-      await page.keyboard.press("ArrowDown");
       await expect(menu.getByRole("menuitemradio", { name: "Medium" })).toBeFocused();
       await page.keyboard.press("Enter");
     }
     await expect(menu).toBeHidden();
     await expect(priority).toHaveAttribute("data-priority", "medium");
+    // The level is named in the bar, not shown by color alone (issue #44).
+    await expect(priority).toHaveText("Medium");
     await expect(priority).toBeFocused();
     await expect(handle).not.toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".drag-preview")).toHaveCount(0);
