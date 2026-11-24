@@ -58,13 +58,6 @@ describe("assistant commands", () => {
     board[1].name = "Ideas";
     expect(() => prepareActions(board, { message: "Done", operations: [operation({ type: "delete-list", list: "Ideas" })] })).toThrow("More than one list");
   });
-  it("applies a batch only to the exact snapshot it was planned against", () => {
-    const actions = prepareActions(initialBoard, { message: "", operations: [operation({ list: "Ideas", title: "Task" })] }).actions;
-    const action = { type: "assistant" as const, snapshot: initialBoard, actions };
-    expect(boardReducer(initialBoard, action)[0].cards).toHaveLength(4);
-    const changed = boardReducer(initialBoard, { type: "rename", columnId: "ideas", name: "Backlog" });
-    expect(boardReducer(changed, action)).toBe(changed);
-  });
   it("creates trimmed cards and edits/moves an existing ID without changing other content", () => {
     const plan = { message: "Done", operations: [
       operation({ list: " planned ", title: "  Launch  ", details: "  Context  " }),

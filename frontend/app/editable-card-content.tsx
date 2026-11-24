@@ -4,6 +4,7 @@ import type { Card } from "./board-state";
 import { fieldCharacterLimit } from "./limits";
 
 type Field = "title" | "details";
+export type CardChanges = { title?: string; details?: string };
 
 function fitHeight(element: HTMLTextAreaElement | null) {
   if (!element) return;
@@ -18,7 +19,7 @@ export function EditableCardContent({ card, busy, onSave }: {
   card: Card;
   busy: boolean;
   /** Resolves to an error message, or null once saved. */
-  onSave: (changes: { title?: string; details?: string }) => Promise<string | null>;
+  onSave: (changes: CardChanges) => Promise<string | null>;
 }) {
   const [draft, setDraft] = useState<{ title: string; details: string } | null>(null);
   const [saving, setSaving] = useState(false);

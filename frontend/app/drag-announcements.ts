@@ -1,8 +1,8 @@
 import type { Active, Announcements, DragEndEvent, Over } from "@dnd-kit/core";
 import { hasSortableData } from "@dnd-kit/sortable";
-import type { Action, Column } from "./board-state";
+import type { BoardCommand, Column } from "./board-state";
 
-export function getCardMove({ active, over }: Pick<DragEndEvent, "active" | "over">): Extract<Action, { type: "move" }> | undefined {
+export function getCardMove({ active, over }: Pick<DragEndEvent, "active" | "over">): Extract<BoardCommand, { type: "move" }> | undefined {
   if (!over?.data.current) return;
   const columnId = String(over.data.current.columnId);
   const move = { type: "move" as const, cardId: String(active.id), columnId };
