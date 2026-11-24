@@ -49,7 +49,8 @@ export function useBoard() {
         body: JSON.stringify({ revision: expectedRevision, actions }),
       })));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "The save could not be confirmed. Reload to check the saved board.";
+      // A network failure (TypeError) leaves the outcome unknown; HTTP errors carry the server's reason.
+      const message = error instanceof Error && !(error instanceof TypeError) ? error.message : "The save could not be confirmed. Reload to check the saved board.";
       setAvailable(false);
       // A connection can fail after a commit. Read back state; never silently replay a write.
       try { adopt(await savedBoard(await fetch("/api/board", { cache: "no-store" }))); } catch { /* Explicit retry stays available. */ }

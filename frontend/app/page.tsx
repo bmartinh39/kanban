@@ -19,6 +19,13 @@ import { fieldCharacterLimit } from "./limits";
 
 const emptyBoard: Column[] = [];
 
+function committed(board: Column[], action: BoardCommand) {
+  if (action.type === "add") return board.some(column => column.cards.some(card => card.id === action.card.id));
+  if (action.type === "create-list") return board.some(column => column.id === action.listId);
+  if (action.type === "rename") return board.some(column => column.id === action.columnId && column.name === action.name);
+  return false;
+}
+
 function CardContent({ card }: { card: Card }) {
   return <div className="card-content"><h3>{card.title}</h3>{card.details && <p>{card.details}</p>}</div>;
 }
@@ -54,7 +61,7 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
   onAdd: (trigger: HTMLButtonElement) => void;
   onDelete: (card: Card, trigger: HTMLButtonElement) => void;
   onDeleteList: (trigger: HTMLButtonElement) => void;
-  onRename: (name: string) => void;
+  onRename: (name: string) => Promise<string | null>;
   onPriority: (cardId: string, priority: CardPriority | null) => Promise<void>;
 }) {
   const { setNodeRef } = useDroppable({ id: column.id, data: { type: "column", columnId: column.id, index } });
@@ -68,21 +75,32 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
   const insertionTop = inserting && firstRect ? (insertionIndex < column.cards.length ? over!.rect.top : (lastRect?.bottom ?? firstRect.top) + 11) - firstRect.top : 0;
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(column.name);
+  const [renameSaving, setRenameSaving] = useState(false);
+  const [renameError, setRenameError] = useState("");
   const renameButton = useRef<HTMLButtonElement>(null);
-  function finishRename(save: boolean) {
-    if (save && !name.trim()) return;
-    if (save) onRename(name);
+  async function finishRename(save: boolean) {
+    if (renameSaving || (save && !name.trim())) return;
+    if (save) {
+      // Keep the editor and draft open until the save is confirmed.
+      setRenameSaving(true);
+      const error = await onRename(name);
+      setRenameSaving(false);
+      setRenameError(error ?? "");
+      if (error) return;
+    }
+    setRenameError("");
     setRenaming(false);
     requestAnimationFrame(() => renameButton.current?.focus());
   }
   return <section className={`column column-${index}${isOver ? " is-over" : ""}`} aria-label={`${column.name} column`} ref={setNodeRef}>
     <header className="column-header">
       <span className="status-dot" />
-      {renaming ? <form className="rename-form" onSubmit={event => { event.preventDefault(); finishRename(true); }}>
-        <input autoFocus aria-label="Column name" value={name} onChange={event => setName(event.target.value)} onKeyDown={event => { if (event.key === "Escape") finishRename(false); }} />
-        <button className="icon-button" disabled={!name.trim()} aria-label="Save column name"><Check size={15} /></button>
-        <button type="button" className="icon-button" aria-label="Cancel rename" onClick={() => finishRename(false)}><X size={15} /></button>
+      {renaming ? <form className="rename-form" onSubmit={event => { event.preventDefault(); void finishRename(true); }}>
+        <input autoFocus aria-label="Column name" aria-invalid={!!renameError} aria-describedby={renameError ? `${column.id}-rename-error` : undefined} value={name} maxLength={fieldCharacterLimit} onChange={event => setName(event.target.value)} onKeyDown={event => { if (event.key === "Escape") void finishRename(false); }} />
+        <button className="icon-button" disabled={!name.trim() || renameSaving} aria-label="Save column name"><Check size={15} /></button>
+        <button type="button" className="icon-button" disabled={renameSaving} aria-label="Cancel rename" onClick={() => void finishRename(false)}><X size={15} /></button>
       </form> : <><h2>{column.name}</h2><span className="column-count">{column.cards.length}</span><button ref={renameButton} aria-disabled={busy} className="icon-button rename-button" aria-label={`Rename ${column.name}`} onClick={() => { if (busy) return; setName(column.name); setRenaming(true); }}><Pencil size={13} /></button></>}
+      {renameError && <p role="alert" id={`${column.id}-rename-error`} className="form-error rename-error">{renameError}</p>}
       <button className="icon-button list-delete" disabled={renaming} aria-disabled={busy} aria-label={`Delete list ${column.name}`} onClick={event => { if (!busy) onDeleteList(event.currentTarget); }}><Trash2 size={14} /></button>
     </header>
     <div className="card-stack" style={{ paddingBottom: gapHeight }}>
@@ -104,8 +122,18 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
   </section>;
 }
 
-function AddItemDialog({ columnName, onClose, onAdd }: { columnName?: string; onClose: () => void; onAdd: (title: string, details: string) => void }) {
+function AddItemDialog({ columnName, onClose, onAdd }: {
+  columnName?: string;
+  onClose: () => void;
+  /** Saves with a stable ID; resolves to an error message, or null once saved. */
+  onAdd: (id: string, title: string, details: string) => Promise<string | null>;
+}) {
   const isList = columnName === undefined;
+  // Reused on retry, so a save that committed despite an error cannot be duplicated.
+  const [id] = useState(() => crypto.randomUUID());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const errorId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
@@ -117,22 +145,30 @@ function AddItemDialog({ columnName, onClose, onAdd }: { columnName?: string; on
     titleInput.current!.focus();
     return () => element.close();
   }, []);
-  return <dialog ref={dialog} aria-labelledby={titleId} onCancel={onClose} onKeyDown={event => {
+  async function submit() {
+    if (saving || !title.trim()) return;
+    setSaving(true);
+    setError("");
+    const failure = await onAdd(id, title, details);
+    if (failure) { setSaving(false); setError(failure); }
+  }
+  return <dialog ref={dialog} aria-labelledby={titleId} onCancel={event => { if (saving) event.preventDefault(); else onClose(); }} onKeyDown={event => {
     if (event.key !== "Tab") return;
     const controls = event.currentTarget.querySelectorAll<HTMLElement>(":is(button, input, textarea):not(:disabled)");
     const first = controls[0];
     const last = controls[controls.length - 1];
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-  }} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <form onSubmit={event => { event.preventDefault(); if (title.trim()) onAdd(title, details); }}>
+  }} onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+    <form aria-describedby={error ? errorId : undefined} onSubmit={event => { event.preventDefault(); void submit(); }}>
       <div className="dialog-heading"><h2 id={titleId}>{isList ? "Add a list" : "Add a card"}</h2><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose}><X size={20} /></button></div>
       {!isList && <p className="dialog-subtitle">List <strong>{columnName}</strong></p>}
       <label htmlFor="item-title">{isList ? "List name" : "Title"} <span className="required-label">Required</span></label>
       <input id="item-title" ref={titleInput} placeholder={isList ? "What is this stage called?" : "What needs to happen?"} value={title} onChange={event => setTitle(event.target.value)} maxLength={fieldCharacterLimit} required />
       {!isList && <><label htmlFor="card-details">Details <span className="optional-label">Optional</span></label>
-      <textarea id="card-details" placeholder="A little context goes a long way..." value={details} onChange={event => setDetails(event.target.value)} rows={4} /></>}
-      <div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={!title.trim()}>{isList ? "Create list" : "Add card"} <Plus size={16} /></button></div>
+      <textarea id="card-details" placeholder="A little context goes a long way..." value={details} onChange={event => setDetails(event.target.value)} maxLength={fieldCharacterLimit} rows={4} /></>}
+      {error && <p role="alert" id={errorId} className="form-error">{error}</p>}
+      <div className="dialog-actions"><button type="button" className="secondary-button" disabled={saving} onClick={onClose}>Cancel</button><button className="primary-button" disabled={!title.trim() || saving}>{saving ? "Saving..." : isList ? "Create list" : "Add card"} <Plus size={16} /></button></div>
     </form>
   </dialog>;
 }
@@ -144,6 +180,16 @@ export default function Home() {
   const board = dropPreview ?? savedBoard;
   function dispatch(action: BoardCommand) {
     return storage.save([action]).catch(() => {});
+  }
+  // For forms: resolves to null once saved, or to an error so the form keeps its draft.
+  async function saveCommand(action: BoardCommand): Promise<string | null> {
+    try {
+      await storage.save([action]);
+      return null;
+    } catch (error) {
+      // A failed save is read back. If that shows the command committed, treat it as saved.
+      return committed(storage.current.current?.columns ?? [], action) ? null : (error as Error).message;
+    }
   }
   async function applyAssistant(snapshot: Column[], plan: AssistantPlan, revision: number) {
     if (storage.current.current?.columns !== snapshot) throw new Error("The board changed while I was thinking. Send your request again to use the latest board. No changes were made.");
@@ -268,7 +314,7 @@ export default function Home() {
             onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }}
             onDelete={(card, trigger) => { addTrigger.current = trigger; setDeletingCard({ card, columnId: column.id }); }}
             onDeleteList={trigger => { addTrigger.current = trigger; setDeletingList(column); }}
-            onRename={name => dispatch({ type: "rename", columnId: column.id, name })}
+            onRename={name => saveCommand({ type: "rename", columnId: column.id, name: name.trim() })}
             onPriority={(cardId, priority) => dispatch({ type: "set-priority", cardId, priority })}
           />)}</div>
           {!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}
@@ -287,8 +333,18 @@ export default function Home() {
         requestAnimationFrame(() => assistantLauncher.current?.focus());
       }} board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
     </main>
-    {addingColumn && <AddItemDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={(title, details) => { dispatch({ type: "add", columnId: addingColumn.id, card: { id: crypto.randomUUID(), title, details } }); closeDialog(); }} />}
-    {addingList && <AddItemDialog onClose={closeDialog} onAdd={name => { const listId = crypto.randomUUID(); createdList.current = listId; dispatch({ type: "create-list", listId, name }); closeDialog(); }} />}
+    {addingColumn && <AddItemDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={async (id, title, details) => {
+      const error = await saveCommand({ type: "add", columnId: addingColumn.id, card: { id, title, details } });
+      if (!error) closeDialog();
+      return error;
+    }} />}
+    {addingList && <AddItemDialog onClose={closeDialog} onAdd={async (listId, name) => {
+      createdList.current = listId;
+      const error = await saveCommand({ type: "create-list", listId, name });
+      if (error) createdList.current = null;
+      else closeDialog();
+      return error;
+    }} />}
     {deletingCard && <DeleteCardDialog card={deletingCard.card} onClose={cancelDelete} onDelete={() => {
       deletedCardColumn.current = deletingCard.columnId;
       setDeletingCard(null);
