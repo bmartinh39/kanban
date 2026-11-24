@@ -254,6 +254,34 @@ test("desktop assistant collapses to a top-bar launcher and reopens with its con
   await expect.poll(async () => (await page.getByRole("main").boundingBox())!.width).toBeCloseTo(boardWidth, 0);
 });
 
+test("desktop collapse and expand morph the layout in one view transition, skipped for reduced motion (issue #38)", async ({ page }) => {
+  test.skip(page.viewportSize()!.width <= 700);
+  await openChat(page);
+  const supported = await page.evaluate(() => {
+    if (!document.startViewTransition) return false;
+    const start = document.startViewTransition.bind(document);
+    Object.assign(window, { viewTransitions: 0 });
+    document.startViewTransition = (update => {
+      (window as unknown as { viewTransitions: number }).viewTransitions++;
+      return start(update);
+    }) as typeof document.startViewTransition;
+    return true;
+  });
+  test.skip(!supported, "This browser has no view transitions; the layout switches instantly.");
+  const transitions = () => page.evaluate(() => (window as unknown as { viewTransitions: number }).viewTransitions);
+  await expect(page.getByTestId("card-c1")).toHaveCSS("view-transition-name", "card-c1");
+  await assistantPanel(page).getByRole("button", { name: "Collapse assistant" }).click();
+  await expect(assistantLauncher(page)).toBeFocused();
+  expect(await transitions()).toBe(1);
+  await assistantLauncher(page).click();
+  await expect(assistantPanel(page)).toBeVisible();
+  expect(await transitions()).toBe(2);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await assistantPanel(page).getByRole("button", { name: "Collapse assistant" }).click();
+  await expect(assistantPanel(page)).toBeHidden();
+  expect(await transitions()).toBe(2);
+});
+
 test("mobile drawer opens over the board and keeps the conversation and draft after closing", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 664 });
   const errors: string[] = [];

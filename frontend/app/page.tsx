@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDndContext, useDroppable, useSensor, useSensors, type DragCancelEvent, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Bot, Check, Columns3, GripVertical, LayoutGrid, Pencil, Plus, Trash2, X } from "lucide-react";
@@ -43,6 +44,7 @@ function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete, onPriority
   const style = {
     transform: transform || insertOffset ? `translate3d(${transform?.x ?? 0}px, ${(transform?.y ?? 0) + insertOffset}px, 0)` : undefined,
     transition,
+    viewTransitionName: `card-${card.id}`,
   };
   return <article ref={setNodeRef} style={style} className={`task-card${isDragging ? " is-dragging" : ""}`} data-testid={`card-${card.id}`}>
     <div className="card-strip">
@@ -92,7 +94,7 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
     setRenaming(false);
     requestAnimationFrame(() => renameButton.current?.focus());
   }
-  return <section className={`column column-${index}${isOver ? " is-over" : ""}`} aria-label={`${column.name} column`} ref={setNodeRef}>
+  return <section className={`column column-${index}${isOver ? " is-over" : ""}`} aria-label={`${column.name} column`} ref={setNodeRef} style={{ viewTransitionName: `list-${column.id}` }}>
     <header className="column-header">
       <span className="status-dot" />
       {renaming ? <form className="rename-form" onSubmit={event => { event.preventDefault(); void finishRename(true); }}>
@@ -206,6 +208,16 @@ export default function Home() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantCollapsed, setAssistantCollapsed] = useState(false);
   const assistantLauncher = useRef<HTMLButtonElement>(null);
+  // Lists and cards resize between two layouts. A view transition morphs each box once and
+  // crossfades its re-wrapped text, instead of re-wrapping on every animation frame.
+  function collapseAssistant(collapsed: boolean, afterUpdate?: () => void) {
+    const update = () => {
+      flushSync(() => setAssistantCollapsed(collapsed));
+      afterUpdate?.();
+    };
+    if (!document.startViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) update();
+    else document.startViewTransition(update);
+  }
   const addTrigger = useRef<HTMLButtonElement>(null);
   const boardViewport = useRef<HTMLDivElement>(null);
   const keyboardDrop = useRef<string | null>(null);
@@ -286,7 +298,7 @@ export default function Home() {
         event.currentTarget.focus();
         // The same launcher opens the mobile drawer or re-expands the collapsed desktop panel.
         if (window.matchMedia("(max-width: 700px)").matches) setAssistantOpen(true);
-        else setAssistantCollapsed(false);
+        else collapseAssistant(false);
       }}><Bot size={17} aria-hidden="true" /> AI Assistant</button>
     </header>
     <main>
@@ -329,8 +341,7 @@ export default function Home() {
         </div>}</DragOverlay>
       </DndContext>
       <AssistantChat drawerOpen={assistantOpen} onCloseDrawer={() => setAssistantOpen(false)} collapsed={assistantCollapsed} onCollapse={() => {
-        setAssistantCollapsed(true);
-        requestAnimationFrame(() => assistantLauncher.current?.focus());
+        collapseAssistant(true, () => assistantLauncher.current?.focus());
       }} board={board} revision={storage.snapshot.revision} disabled={storage.saving || !storage.available} onRefresh={() => void storage.load()} onApply={applyAssistant} />
     </main>
     {addingColumn && <AddItemDialog columnName={addingColumn.name} onClose={closeDialog} onAdd={async (id, title, details) => {
