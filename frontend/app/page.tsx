@@ -38,7 +38,6 @@ function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete, onPriority
     transform: transform || insertOffset ? `translate3d(${transform?.x ?? 0}px, ${(transform?.y ?? 0) + insertOffset}px, 0)` : undefined,
     transition,
     viewTransitionName: `card-${card.id}`,
-    viewTransitionClass: "card",
   };
   return <article ref={setNodeRef} style={style} className={`task-card${isDragging ? " is-dragging" : ""}`} data-testid={`card-${card.id}`}>
     <div className="card-strip">
