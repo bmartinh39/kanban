@@ -13,10 +13,11 @@
   --danger: #fa889a;
   --danger-hover: #ffacb9;
   --danger-surface: #39242d;
-  /* Priority tokens (issue #44): cool slate, then warm hues of falling lightness, so levels stay apart
-     for color-blind users. Never mint (brand) or a list status color. Menu swatches and bars share them. */
+  /* Priority tokens (issue #44): soft blue, then warm hues of falling lightness, so levels stay apart
+     for color-blind users. Never mint (brand). Menu swatches and bars share them. */
   --priority-none: oklch(0.5 0.015 255);
-  --priority-low: oklch(0.74 0.03 255);
+  --priority-low: #4da3ff;
+  --priority-low-text: #8fc2ff;
   --priority-medium: oklch(0.86 0.14 85);
   --priority-high: oklch(0.76 0.16 55);
   --priority-urgent: oklch(0.65 0.21 25);
@@ -86,17 +87,20 @@ h1, h2 { font-family: var(--heading-font); }
 [data-priority="urgent"] { --priority-color: var(--priority-urgent); }
 /* Intensity grows with priority: almost invisible, soft tint, medium tint, then solid. */
 .card-strip > .priority-bar { display: flex; justify-content: center; align-items: center; position: relative; }
-/* Tints keep each level's own hue at a low lightness, so they never turn muddy. */
-.priority-bar { --priority-tint: var(--priority-color, var(--priority-none)); background: oklch(from var(--priority-tint) var(--tint-l) var(--tint-c) h); color: var(--priority-tint); }
-.priority-bar[data-priority="low"] { --tint-l: 0.36; --tint-c: 0.025; }
-.priority-bar[data-priority="medium"] { --tint-l: 0.42; --tint-c: 0.08; }
+/* Medium keeps its own hue at a low lightness, so the tint never turns muddy. */
+.priority-bar[data-priority="medium"] { --tint-l: 0.42; background: oklch(from var(--priority-medium) var(--tint-l) 0.08 h); color: var(--priority-medium); }
 .priority-bar:is(:hover, :focus-visible, [aria-expanded="true"]) { --tint-l: 0.46; color: var(--text); }
+/* Low: a soft blue wash (the swatch color at 14%) with light blue text. */
+.priority-bar[data-priority="low"] { background: color-mix(in srgb, var(--priority-low) 14%, var(--raised)); color: var(--priority-low-text); }
+.priority-bar[data-priority="low"]:is(:hover, :focus-visible, [aria-expanded="true"]) { background: color-mix(in srgb, var(--priority-low) 24%, var(--raised)); }
 .priority-bar:is([data-priority="high"], [data-priority="urgent"]) { background: var(--priority-color); color: var(--page); }
 .priority-bar:is([data-priority="high"], [data-priority="urgent"]):is(:hover, :focus-visible, [aria-expanded="true"]) { background: color-mix(in oklch, var(--priority-color) 82%, white); }
-/* No priority: a neutral bar that blends with the corners (a near-gray origin has no hue to keep). */
-.priority-bar:not([data-priority]) { background: var(--hover); }
-.priority-bar:not([data-priority]):is(:hover, :focus-visible, [aria-expanded="true"]) { background: #3a424e; }
-.priority-bar:not([data-priority], :hover, :focus-visible, [aria-expanded="true"]) { color: var(--muted); }
+/* No priority: no colored bar, just the card surface over a hairline divider. A "+ Priority" hint
+   appears on card hover or focus (always on touch); the bar stays clickable. */
+.priority-bar:not([data-priority]) { background: var(--raised); box-shadow: inset 0 -1px 0 var(--line); color: var(--muted); }
+.priority-bar:not([data-priority]):is(:hover, :focus-visible, [aria-expanded="true"]) { background: var(--hover); }
+.priority-add { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 650; opacity: 0; transition: opacity .15s; }
+.task-card:is(:hover, :has(:focus-visible)) .priority-add, .priority-bar[aria-expanded="true"] .priority-add { opacity: 1; }
 .priority-label { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 750; letter-spacing: .7px; text-transform: uppercase; }
 .priority-label + .priority-chevron { position: absolute; right: 6px; }
 .delete-button { border-start-end-radius: inherit; color: var(--muted); }
@@ -108,7 +112,7 @@ h1, h2 { font-family: var(--heading-font); }
 }
 @media (any-pointer: coarse) {
   .task-card { --strip-height: 32px; --corner-width: 44px; }
-  :is(.priority-chevron, .delete-button svg) { opacity: 1; }
+  :is(.priority-chevron, .delete-button svg, .priority-add) { opacity: 1; }
 }
 .priority-menu {
   position: fixed; inset: auto; margin: 0; visibility: hidden;
