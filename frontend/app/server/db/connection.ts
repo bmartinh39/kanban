@@ -11,6 +11,14 @@ const migrations = [
    CREATE INDEX columns_position ON columns(position);
    CREATE INDEX cards_column_position ON cards(column_id, position);`,
   `ALTER TABLE cards ADD COLUMN priority TEXT CHECK (priority IN ('low', 'normal', 'medium', 'high', 'urgent', 'critical'));`,
+  // Issue #44: four priority levels. Normal becomes Medium and Critical becomes Urgent; a changed board
+  // gets a new revision so open tabs reload instead of saving the retired levels.
+  `UPDATE board_state SET revision = revision + 1 WHERE EXISTS (SELECT 1 FROM cards WHERE priority IN ('normal', 'critical'));
+   CREATE TABLE cards_next (id TEXT PRIMARY KEY NOT NULL, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL CHECK (length(trim(title)) > 0), details TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL CHECK (position >= 0), priority TEXT CHECK (priority IN ('low', 'medium', 'high', 'urgent')));
+   INSERT INTO cards_next SELECT id, column_id, title, details, position, CASE priority WHEN 'normal' THEN 'medium' WHEN 'critical' THEN 'urgent' ELSE priority END FROM cards;
+   DROP TABLE cards;
+   ALTER TABLE cards_next RENAME TO cards;
+   CREATE INDEX cards_column_position ON cards(column_id, position);`,
 ];
 
 export function openDatabase(path = process.env.DATABASE_PATH || "./data/kanban.sqlite", migrate = false) {

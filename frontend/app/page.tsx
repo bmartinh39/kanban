@@ -14,7 +14,7 @@ import { useBoard } from "./use-board";
 import { AssistantChat } from "./assistant-chat";
 import { DeleteCardDialog, DeleteListDialog } from "./delete-list-dialog";
 import { prepareActions, type AssistantPlan } from "./assistant-commands";
-import { CardPriorityButton } from "./card-priority-button";
+import { CardPriorityButton, PriorityLabel } from "./card-priority-button";
 import { fieldCharacterLimit } from "./limits";
 
 
@@ -334,7 +334,7 @@ export default function Home() {
         <DragOverlay>{activeCard && <div className="task-card drag-preview" aria-hidden="true">
           <div className="card-strip">
             <span className="drag-handle" />
-            <span className="priority-bar" data-priority={activeCard.priority} />
+            <span className="priority-bar" data-priority={activeCard.priority}><PriorityLabel priority={activeCard.priority} /></span>
             <span className="delete-button" />
           </div>
           <CardContent card={activeCard} />

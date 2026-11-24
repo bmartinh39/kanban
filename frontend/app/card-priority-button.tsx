@@ -1,16 +1,16 @@
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, CircleAlert } from "lucide-react";
 import { cardPriorities, type Card, type CardPriority } from "./board-state";
 
-const priorityLabels: Record<CardPriority, string> = {
-  low: "Low",
-  normal: "Normal",
-  medium: "Medium",
-  high: "High",
-  urgent: "Urgent",
-  critical: "Critical",
-};
+const priorityLabels: Record<CardPriority, string> = { low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
 const priorityOptions: readonly (CardPriority | null)[] = [null, ...cardPriorities];
+
+// The level is named in the bar, so it never depends on color alone; Urgent also gets an alert icon.
+export function PriorityLabel({ priority }: { priority?: CardPriority }) {
+  return priority && <span className="priority-label" aria-hidden="true">
+    {priority === "urgent" && <CircleAlert size={12} strokeWidth={2.6} />}{priorityLabels[priority]}
+  </span>;
+}
 
 export function CardPriorityButton({ card, busy, onChange }: {
   card: Card;
@@ -81,7 +81,8 @@ export function CardPriorityButton({ card, busy, onChange }: {
     <button type="button" ref={trigger} className="priority-bar" data-priority={priority} popoverTarget={menuId}
       aria-label={`Priority for ${card.title}: ${priority ? priorityLabels[priority] : "None"}`}
       aria-haspopup="menu" aria-expanded={open} aria-disabled={disabled} onClick={event => { if (disabled) event.preventDefault(); }}>
-      <ChevronDown size={16} aria-hidden="true" />
+      <PriorityLabel priority={priority} />
+      <ChevronDown className="priority-chevron" size={16} aria-hidden="true" />
     </button>
     <div id={menuId} ref={popup} className="priority-menu" popover="auto" role="menu" aria-label={`Priority for ${card.title}`}
       onToggle={event => setOpen(event.newState === "open")} onKeyDown={handleMenuKey}>

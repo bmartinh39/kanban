@@ -71,7 +71,7 @@ describe("SQLite persistence", () => {
     expect(db.pragma("journal_mode", { simple: true })).toBe("wal");
     expect(db.pragma("foreign_keys", { simple: true })).toBe(1);
     expect(db.pragma("synchronous", { simple: true })).toBe(2);
-    expect(db.pragma("user_version", { simple: true })).toBe(2);
+    expect(db.pragma("user_version", { simple: true })).toBe(3);
     expect(db.pragma("busy_timeout", { simple: true })).toBe(5000);
   });
   it("upgrades a saved board to support optional priorities without changing its revision or cards", () => {
@@ -89,6 +89,23 @@ describe("SQLite persistence", () => {
     expect(db.prepare("SELECT priority FROM cards WHERE id = 'c1'").get()).toEqual({ priority: null });
     expect(repo.mutate(cleared.revision, [{ type: "set-priority", cardId: "c1", priority: null }])).toEqual(cleared);
     expect(() => db.prepare("UPDATE cards SET priority = 'other' WHERE id = 'c1'").run()).toThrow("CHECK");
+  });
+  it("maps retired priorities to the four levels and bumps the revision only when a card changed (issue #44)", () => {
+    const reopenAtVersion2 = (priorities: Record<string, string>) => {
+      db.exec("DROP TABLE cards; CREATE TABLE cards (id TEXT PRIMARY KEY NOT NULL, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL, priority TEXT CHECK (priority IN ('low', 'normal', 'medium', 'high', 'urgent', 'critical'))); PRAGMA user_version = 2;");
+      const insert = db.prepare("INSERT INTO cards (id, column_id, title, details, position, priority) VALUES (?, 'ideas', ?, '', ?, ?)");
+      Object.entries(priorities).forEach(([id, priority], position) => insert.run(id, id, position, priority));
+      db.close(); db = openDatabase(join(folder, "board.sqlite"), true);
+      return boardRepository(db).read();
+    };
+    const unchanged = reopenAtVersion2({ a: "low", b: "high" });
+    expect(unchanged.revision).toBe(0);
+    expect(unchanged.columns[0].cards.map(card => card.priority)).toEqual(["low", "high"]);
+    const migrated = reopenAtVersion2({ a: "low", b: "normal", c: "medium", d: "high", e: "urgent", f: "critical", g: null as unknown as string });
+    expect(migrated.revision).toBe(1);
+    expect(migrated.columns[0].cards.map(card => card.priority)).toEqual(["low", "medium", "medium", "high", "urgent", "urgent", undefined]);
+    expect(() => db.prepare("UPDATE cards SET priority = 'critical' WHERE id = 'a'").run()).toThrow("CHECK");
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'cards' AND sql IS NOT NULL").all()).toEqual([{ name: "cards_column_position" }]);
   });
   it("persists rename, creation, edits, ordering, cross-column insertion, and deletion on reopen", () => {
     const repo = boardRepository(db);
@@ -153,7 +170,7 @@ describe("SQLite persistence", () => {
   });
   it("refuses unmigrated and future schemas without damaging data", () => {
     expect(() => openDatabase(join(folder, "fresh.sqlite"))).toThrow("not initialized");
-    db.pragma("user_version = 3");
+    db.pragma("user_version = 4");
     expect(() => openDatabase(join(folder, "board.sqlite"), true)).toThrow("newer");
     expect(db.prepare("SELECT count(*) AS count FROM cards").get()).toEqual({ count: 12 });
   });
