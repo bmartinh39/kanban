@@ -39,7 +39,7 @@ Deploy on a VPS with Docker Compose, from the repository root:
 docker compose up -d --build
 ```
 
-The app binds to localhost:3000 for a reverse proxy. Pass AI settings/secrets through the hosting environment or a local root `.env` file (ignored). One application instance uses the named `kanban-data` volume mounted at `/data`, including SQLite WAL/SHM files. Deleting that volume deletes saved data. Use local disk; consider PostgreSQL when multiple hosts or sustained concurrent writers are needed. There are no accounts; deployment access controls remain external.
+The app binds to localhost:3000 for a reverse proxy. The app rejects request bodies over 600 KB (HTTP 413); a proxy body limit should be at least that, for example `client_max_body_size 1m;` in nginx. Pass AI settings/secrets through the hosting environment or a local root `.env` file (ignored). One application instance uses the named `kanban-data` volume mounted at `/data`, including SQLite WAL/SHM files. Deleting that volume deletes saved data. Use local disk; consider PostgreSQL when multiple hosts or sustained concurrent writers are needed. There are no accounts; deployment access controls remain external.
 
 Create a consistent live backup and copy it off the VPS (create the local `backups` folder first):
 
