@@ -1,5 +1,6 @@
 import type { Column } from "./board-state";
-import { applyCommands, parseCommands, type BoardCommand } from "./board-commands";
+import { applyCommands, parseCommands } from "./board-commands";
+import type { BoardCommand } from "./board-state";
 import { batchLimit, chatHistoryByteLimit, chatHistoryLimit, chatMessageCharacterLimit, clip, nameDisplayLimit, utf8Bytes } from "./limits";
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };

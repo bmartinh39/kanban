@@ -1,7 +1,6 @@
-import { boardReducer, cardPriorities, type Action, type Column } from "./board-state";
+import { boardReducer, cardPriorities, type BoardCommand, type Column } from "./board-state";
 import { batchLimit, fieldCharacterLimit, idCharacterLimit } from "./limits";
 
-export type BoardCommand = Exclude<Action, { type: "assistant" }>;
 export type BoardSnapshot = { columns: Column[]; revision: number };
 
 export class InvalidCommand extends Error {}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BoardCommand, BoardSnapshot } from "./board-commands";
+import type { BoardSnapshot } from "./board-commands";
+import type { BoardCommand } from "./board-state";
 
 async function savedBoard(response: Response): Promise<BoardSnapshot> {
   const result = await response.json();
