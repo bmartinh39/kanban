@@ -15,6 +15,7 @@ import { AssistantChat } from "./assistant-chat";
 import { DeleteCardDialog, DeleteListDialog } from "./delete-list-dialog";
 import { prepareActions, type AssistantPlan } from "./assistant-commands";
 import { CardPriorityButton, PriorityLabel } from "./card-priority-button";
+import { EditableCardContent } from "./editable-card-content";
 import { fieldCharacterLimit } from "./limits";
 
 
@@ -24,6 +25,8 @@ function committed(board: Column[], action: BoardCommand) {
   if (action.type === "add") return board.some(column => column.cards.some(card => card.id === action.card.id));
   if (action.type === "create-list") return board.some(column => column.id === action.listId);
   if (action.type === "rename") return board.some(column => column.id === action.columnId && column.name === action.name);
+  if (action.type === "edit") return board.some(column => column.cards.some(card => card.id === action.cardId &&
+    (action.title === undefined || card.title === action.title) && (action.details === undefined || card.details === action.details)));
   return false;
 }
 
@@ -31,9 +34,10 @@ function CardContent({ card }: { card: Card }) {
   return <div className="card-content"><h3>{card.title}</h3>{card.details && <p>{card.details}</p>}</div>;
 }
 
-function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete, onPriority }: {
+function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete, onEdit, onPriority }: {
   card: Card; columnId: string; busy: boolean; insertOffset?: number;
   onDelete: (trigger: HTMLButtonElement) => void;
+  onEdit: (changes: { title?: string; details?: string }) => Promise<string | null>;
   onPriority: (priority: CardPriority | null) => Promise<void>;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging, transform, transition } = useSortable({
@@ -54,16 +58,17 @@ function TaskCard({ card, columnId, busy, insertOffset = 0, onDelete, onPriority
         <Trash2 size={14} aria-hidden="true" />
       </button>
     </div>
-    <CardContent card={card} />
+    <EditableCardContent card={card} busy={busy} onSave={onEdit} />
   </article>;
 }
 
-function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRename, onPriority }: {
+function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRename, onEdit, onPriority }: {
   column: Column; index: number; busy: boolean;
   onAdd: (trigger: HTMLButtonElement) => void;
   onDelete: (card: Card, trigger: HTMLButtonElement) => void;
   onDeleteList: (trigger: HTMLButtonElement) => void;
   onRename: (name: string) => Promise<string | null>;
+  onEdit: (cardId: string, changes: { title?: string; details?: string }) => Promise<string | null>;
   onPriority: (cardId: string, priority: CardPriority | null) => Promise<void>;
 }) {
   const { setNodeRef } = useDroppable({ id: column.id, data: { type: "column", columnId: column.id, index } });
@@ -115,6 +120,7 @@ function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRen
           busy={busy}
           insertOffset={inserting && cardIndex >= insertionIndex ? gapHeight : 0}
           onDelete={trigger => onDelete(card, trigger)}
+          onEdit={changes => onEdit(card.id, changes)}
           onPriority={priority => onPriority(card.id, priority)}
         />)}
       </SortableContext>
@@ -331,6 +337,7 @@ export default function Home() {
             onDelete={(card, trigger) => { addTrigger.current = trigger; setDeletingCard({ card, columnId: column.id }); }}
             onDeleteList={trigger => { addTrigger.current = trigger; setDeletingList(column); }}
             onRename={name => saveCommand({ type: "rename", columnId: column.id, name: name.trim() })}
+            onEdit={(cardId, changes) => saveCommand({ type: "edit", cardId, ...changes })}
             onPriority={(cardId, priority) => dispatch({ type: "set-priority", cardId, priority })}
           />)}</div>
           {!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}
