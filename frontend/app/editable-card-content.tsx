@@ -49,7 +49,7 @@ export function EditableCardContent({ card, busy, onSave }: {
     const selection = window.getSelection();
     // A drag that selected text is left alone so the text can still be copied.
     if (selection && !selection.isCollapsed) return;
-    const inside = selection?.anchorNode && event.currentTarget.contains(selection.anchorNode);
+    const inside = card[field] && selection?.anchorNode && event.currentTarget.contains(selection.anchorNode);
     start(field, inside ? selection.anchorOffset : undefined);
   }
 
@@ -97,12 +97,13 @@ export function EditableCardContent({ card, busy, onSave }: {
     return <div ref={content} className="card-content">
       <h3 className="editable-text" data-field="title" tabIndex={busy ? -1 : 0}
         onClick={event => startFromClick("title", event)} onKeyDown={event => handleReaderKey("title", event)}>{card.title}</h3>
-      {card.details && <p className="editable-text" data-field="details" tabIndex={busy ? -1 : 0}
-        onClick={event => startFromClick("details", event)} onKeyDown={event => handleReaderKey("details", event)}>{card.details}</p>}
+      {/* Empty details keep their placeholder so they can be filled in again. */}
+      <p className={`editable-text${card.details ? "" : " is-placeholder"}`} data-field="details" tabIndex={busy ? -1 : 0}
+        onClick={event => startFromClick("details", event)} onKeyDown={event => handleReaderKey("details", event)}>{card.details || "Add details"}</p>
     </div>;
   }
   const editor = (field: Field, label: string) => <textarea className="card-editor" rows={1} aria-label={label}
-    value={draft[field]} maxLength={fieldCharacterLimit} readOnly={saving} placeholder={field === "details" ? "Add details" : undefined}
+    value={draft[field]} maxLength={fieldCharacterLimit} readOnly={saving} placeholder={field === "details" ? "Add details" : "Add a title"}
     onChange={event => { setDraft({ ...draft, [field]: event.target.value }); fitHeight(event.target); }}
     onKeyDown={event => handleEditorKey(field, event)} />;
   return <div ref={content} className="card-content is-editing"

@@ -66,15 +66,21 @@ test("edits details with newlines, saves on blur, cancels on Escape, and adds de
   await title.press("Enter");
   await expect(title).toHaveCount(0);
   await expect(heading).toHaveText(original.title);
-  await expect(card.locator("p")).toHaveCount(0);
   expect(boardState.revision).toBe(2);
   expect(boardState.columns[0].cards[1]).toEqual({ ...original, details: "" });
 
-  await heading.click();
+  // Cleared details keep a placeholder that opens the editor again.
+  const placeholder = card.locator("p.is-placeholder");
+  await expect(placeholder).toHaveText("Add details");
+  await placeholder.click();
+  await expect(details).toBeFocused();
+  await expect(details).toHaveValue("");
   await expect(details).toHaveAttribute("placeholder", "Add details");
+  await expect(title).toHaveAttribute("placeholder", "Add a title");
   await details.fill("Back again");
   await details.press("Control+Enter");
   await expect(card.locator("p")).toHaveText("Back again");
+  await expect(card.locator("p.is-placeholder")).toHaveCount(0);
   expect(boardState.revision).toBe(3);
 });
 

@@ -133,7 +133,7 @@ h1, h2 { font-family: var(--heading-font); }
 .editable-text:hover, .is-editing :is(h3, p):focus-within { background: #ffffff0f; box-shadow: 0 0 0 4px #ffffff0f; border-radius: 4px; }
 .editable-text:focus-visible { outline-offset: 3px; }
 .card-editor { display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; line-height: inherit; resize: none; overflow: hidden; outline: none; caret-color: var(--accent); }
-.card-editor::placeholder { color: var(--muted); opacity: .6; }
+.card-editor::placeholder, .task-card .is-placeholder { color: color-mix(in srgb, var(--muted) 85%, var(--raised)); opacity: 1; }
 .task-card .card-edit-error { margin: 8px 0 0; color: var(--danger); font-size: 12px; line-height: 1.5; }
 .is-dragging { opacity: .3; outline: 1px dashed var(--accent); outline-offset: -1px; }
 .drag-preview { transform: rotate(3deg); box-shadow: 0 15px 35px #0007; cursor: grabbing; }
