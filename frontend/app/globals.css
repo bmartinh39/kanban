@@ -90,10 +90,10 @@ h1, h2 { font-family: var(--heading-font); }
 .priority-bar[data-priority] { --strength: 100%; background: color-mix(in srgb, var(--priority-color) var(--strength), var(--raised)); color: var(--page); }
 .priority-bar:is([data-priority="low"], [data-priority="medium"]) { --strength: 85%; }
 .priority-bar[data-priority]:is(:hover, :focus-visible, [aria-expanded="true"]) { background: color-mix(in oklch, var(--priority-color) 85%, white); }
-/* No priority: no colored bar, just the card surface over a hairline divider. A "+ Priority" hint
-   appears on card hover or focus (always on touch); the bar stays clickable. */
-.priority-bar:not([data-priority]) { background: var(--raised); box-shadow: inset 0 -1px 0 var(--line); color: var(--muted); }
-.priority-bar:not([data-priority]):is(:hover, :focus-visible, [aria-expanded="true"]) { background: var(--hover); }
+/* No priority: no colored bar, just a neutral strip matching the corners over a hairline divider; it darkens
+   to the card surface on hover. A "+ Priority" hint appears on card hover or focus (always on touch). */
+.priority-bar:not([data-priority]) { background: var(--hover); box-shadow: inset 0 -1px 0 var(--line); color: var(--muted); }
+.priority-bar:not([data-priority]):is(:hover, :focus-visible, [aria-expanded="true"]) { background: var(--raised); }
 .priority-add { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 650; opacity: 0; transition: opacity .15s; }
 .task-card:is(:hover, :has(:focus-visible)) .priority-add, .priority-bar[aria-expanded="true"] .priority-add { opacity: 1; }
 .priority-label { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 750; letter-spacing: .7px; text-transform: uppercase; }
