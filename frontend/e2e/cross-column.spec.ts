@@ -26,20 +26,27 @@ async function pointerSlot(page: Page, index: number) {
     const targetY = rect.y - transform.m42 + (index === 2 ? rect.height + 11 : rect.height / 4);
     window.scrollBy(0, targetY - window.innerHeight / 2);
   }, index);
-  const bounds = await target.evaluate(element => {
-    const rect = element.getBoundingClientRect();
-    const matrix = new DOMMatrix(getComputedStyle(element).transform);
-    return { x: rect.x - matrix.m41, y: rect.y - matrix.m42, width: rect.width, height: rect.height };
-  });
-  const frame = await visibleBoardFrame(page);
-  const viewport = (await page.getByLabel("Project board columns").boundingBox())!;
-  const left = Math.max(bounds.x, viewport.x, frame.x);
-  const right = Math.min(bounds.x + bounds.width, viewport.x + viewport.width, frame.x + frame.width);
-  const y = index === 2 ? bounds.y + bounds.height + 11 : bounds.y + bounds.height / 4;
-  expect(y).toBeGreaterThan(Math.max(frame.y, viewport.y));
-  expect(y).toBeLessThan(Math.min(frame.y + frame.height, viewport.y + viewport.height));
-  await page.mouse.move((left + right) / 2, y, { steps: 10 });
+  const aim = async () => {
+    const bounds = await target.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const matrix = new DOMMatrix(getComputedStyle(element).transform);
+      return { x: rect.x - matrix.m41, y: rect.y - matrix.m42, width: rect.width, height: rect.height };
+    });
+    const frame = await visibleBoardFrame(page);
+    const viewport = (await page.getByLabel("Project board columns").boundingBox())!;
+    const left = Math.max(bounds.x, viewport.x, frame.x);
+    const right = Math.min(bounds.x + bounds.width, viewport.x + viewport.width, frame.x + frame.width);
+    const y = index === 2 ? bounds.y + bounds.height + 11 : bounds.y + bounds.height / 4;
+    expect(y).toBeGreaterThan(Math.max(frame.y, viewport.y));
+    expect(y).toBeLessThan(Math.min(frame.y + frame.height, viewport.y + viewport.height));
+    return { x: (left + right) / 2, y };
+  };
+  const first = await aim();
+  await page.mouse.move(first.x, first.y, { steps: 10 });
   await expect(column(page)).toHaveClass(/is-over/);
+  // Auto-scroll during the move can shift the board under the pointer, so aim again once it settles.
+  const settled = await aim();
+  await page.mouse.move(settled.x, settled.y, { steps: 2 });
 }
 
 test.beforeEach(async ({ page }) => {
