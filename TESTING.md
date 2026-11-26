@@ -11,9 +11,11 @@ Run commands from `frontend`. There are two levels: a fast task loop run by the 
 
 Documentation-only changes need only a diff review. Add a regression test at the lowest layer that proves a bug fix or new behavior; do not duplicate the same assertion in unit and browser tests. After a failure, rerun the failing test and related cases, not the whole checklist.
 
+What a change implements decides which tests it needs, not a coverage number. Test contracts and invariants thoroughly: revision checks, transactional batches, migrations, validation of untrusted model output, and provider errors. For presentational UI and glue code, test only the user-visible behavior. Do not add tests whose only purpose is raising coverage.
+
 ## Full gate (CI)
 
-Pull requests that only change Markdown files or `.claude/` skip the test jobs. Otherwise CI runs lint, typecheck, `npm run test:coverage` (thresholds: 90% lines/functions/statements, 85% branches), the full UI suite in Chromium, Firefox and mobile Chromium, a production build, and the Chromium persistence suite. Do not lower thresholds, delete regression cases, or add retries to make it pass.
+Pull requests that only change Markdown files or `.claude/` skip the test jobs. Otherwise CI runs lint, typecheck, `npm run test:coverage` (a report only; no thresholds), the full UI suite in Chromium, Firefox and mobile Chromium, a production build, and the Chromium persistence suite. Do not delete regression cases or add retries to make it pass.
 
 ## Isolation rules
 
