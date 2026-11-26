@@ -27,7 +27,9 @@ export async function visibleBoardFrame(page: Page) {
   });
 }
 
-// Arrow keys are ignored until the keyboard sensor has an active drop target.
+// Arrow keys are ignored until the keyboard sensor has an active drop target. The sensor also attaches its
+// keydown listener in a timer, which Chrome can run after queued input; one timer round trip runs after it.
 export async function expectKeyboardDropTarget(page: Page) {
   await expect(page.locator(".column.is-over")).toHaveCount(1);
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve)));
 }
