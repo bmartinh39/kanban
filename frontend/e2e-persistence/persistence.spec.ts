@@ -33,7 +33,7 @@ test("new lists and their cards persist, and competing list creation rejects sta
   await expect(list).toBeVisible();
   await expect(list.getByRole("article")).toHaveCount(0);
   const created = await snapshot(page);
-  expect(created.columns.at(-1)).toMatchObject({ name, cards: [] });
+  expect(created.columns.at(-1)).toMatchObject({ name, color: expect.stringMatching(/^#[0-9a-f]{6}$/), cards: [] });
   expect(created.columns.slice(0, -1)).toEqual(before.columns);
   expect(created.revision).toBe(before.revision + 1);
   await other.getByRole("button", { name: "Add list", exact: true }).click();
@@ -77,7 +77,7 @@ test("new lists and their cards persist, and competing list creation rejects sta
   await page.reload();
   await expect(page.getByRole("region", { name: / column$/ })).toHaveCount(saved.columns.length);
   expect(await snapshot(page)).toEqual(saved);
-  expect(saved.columns.at(-1)).toEqual({ id: created.columns.at(-1)!.id, name: renamed, cards: [content] });
+  expect(saved.columns.at(-1)).toEqual({ ...created.columns.at(-1)!, name: renamed, cards: [content] });
   await page.getByRole("button", { name: `Delete list ${renamed}`, exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
   expect(await snapshot(page)).toEqual(saved);

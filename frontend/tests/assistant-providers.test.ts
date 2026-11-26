@@ -41,7 +41,8 @@ describe.each(configs)("$name provider contract", config => {
     const sent = JSON.parse(options.body);
     expect(sent).toMatchObject({ model: "chosen-model", store: false, instructions: request.instructions,
       text: { format: { type: "json_schema", strict: true } } });
-    expect(sent.input[0].content).toContain(JSON.stringify(initialBoard));
+    // List colors are display-only and never sent to the model (issue #51).
+    expect(sent.input[0].content).toContain(JSON.stringify(initialBoard.map(({ id, name, cards }) => ({ id, name, cards }))));
     expect(sent.input.at(-1)).toEqual(request.messages[0]);
     expect(sent.provider).toEqual(config.name === "openrouter" ? { require_parameters: true } : undefined);
     expect(JSON.stringify(sent)).not.toContain("selected-secret");

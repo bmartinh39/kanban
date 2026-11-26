@@ -23,7 +23,7 @@ test("assistant creates and renames a list, then confirms empty-list deletion", 
   const id = boardState.columns.at(-1)!.id;
   await send(page, "Rename Release to Shipped");
   await expect(page.getByRole("log")).toContainText('Renamed list "Release" to "Shipped".');
-  expect(boardState.columns.at(-1)).toEqual({ id, name: "Shipped", cards: [] });
+  expect(boardState.columns.at(-1)).toEqual({ id, name: "Shipped", color: "#6fd6a8", cards: [] });
   await send(page, "Delete Shipped, yes I confirm");
   const dialog = page.getByRole("dialog", { name: "Delete this list?" });
   await expect(dialog).toContainText("Delete the empty list Shipped?");

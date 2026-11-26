@@ -47,7 +47,7 @@ test("deletes a populated list and its cards only after confirmation", async ({ 
 });
 
 test("deletes the last empty list and can create a fresh list", async ({ page, boardState }) => {
-  boardState.columns = [{ id: "only", name: "Only", cards: [] }];
+  boardState.columns = [{ id: "only", name: "Only", color: "#79bdf0", cards: [] }];
   await page.reload();
   await page.getByRole("button", { name: "Delete list Only", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
@@ -214,7 +214,7 @@ for (const status of [409, 503]) {
 test("stacks a wrapped list directly under the list above it instead of under the tallest one", async ({ page, boardState }) => {
   test.skip(page.viewportSize()!.width <= 700, "Narrow screens show a single lane");
   const cards = Array.from({ length: 6 }, (_, index) => ({ id: `tall-${index}`, title: `Tall card ${index}`, details: "Details" }));
-  boardState.columns = Array.from({ length: 8 }, (_, index) => ({ id: `l${index}`, name: `List ${index}`, cards: index ? [] : cards }));
+  boardState.columns = Array.from({ length: 8 }, (_, index) => ({ id: `l${index}`, name: `List ${index}`, color: "#79bdf0", cards: index ? [] : cards }));
   await page.reload();
   await expect.poll(() => page.locator(".board-lane").count()).toBeGreaterThan(1);
   const lanes = await page.locator(".board-lane").count();
@@ -225,4 +225,28 @@ test("stacks a wrapped list directly under the list above it instead of under th
   expect(wrapped!.x).toBeCloseTo(short!.x, 0);
   expect(wrapped!.y - (short!.y + short!.height)).toBeLessThanOrEqual(20);
   expect(wrapped!.y).toBeLessThan(tall!.y + tall!.height);
+});
+
+test("creates a list with a color picked on the wheel and keeps it after reload (issue #51)", async ({ page, boardState }, info) => {
+  await page.getByRole("button", { name: "Add list", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  const wheel = dialog.getByRole("slider", { name: "Color wheel" });
+  await expect(dialog.getByRole("button", { name: "Green" })).toHaveAttribute("aria-pressed", "true");
+  await page.screenshot({ path: info.outputPath("list-color-dialog.png") });
+  // The right edge of the wheel is hue 90 at full saturation.
+  const box = (await wheel.boundingBox())!;
+  await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+  await expect(wheel).toHaveAttribute("aria-valuetext", /^Hue 9\d degrees, saturation 9\d percent$/);
+  await expect(dialog.getByRole("button", { name: "Green" })).toHaveAttribute("aria-pressed", "false");
+  const preview = await dialog.locator(".list-name-field .status-dot").evaluate(element => getComputedStyle(element).backgroundColor);
+  await dialog.getByLabel(/List name/).fill("Blocked");
+  await dialog.getByRole("button", { name: "Create list", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const dot = list(page, "Blocked").locator(".status-dot");
+  await expect(dot).toHaveCSS("background-color", preview);
+  const saved = boardState.columns.at(-1)!.color;
+  expect(saved).toMatch(/^#[0-9a-f]{6}$/);
+  await page.reload();
+  await expect(list(page, "Blocked").locator(".status-dot")).toHaveCSS("background-color", preview);
+  await expect(list(page, "Planned").locator(".status-dot")).toHaveCSS("background-color", "rgb(121, 189, 240)");
 });

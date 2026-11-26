@@ -12,7 +12,7 @@ const cardGap = 11; // Matches the .card-stack gap in globals.css.
 
 type BoardColumnProps = {
   column: Column;
-  /** Position on the board; selects the status-dot color. */
+  /** Position on the board, for keyboard moves between lists. */
   index: number;
   /** True while a save is pending or storage is unavailable; controls stay visible but inert. */
   busy: boolean;
@@ -99,14 +99,14 @@ export function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList
   </>;
 
   return <section
-    className={`column column-${index}${isOver ? " is-over" : ""}`}
+    className={`column${isOver ? " is-over" : ""}`}
     aria-label={`${column.name} column`}
     data-list={column.id}
     ref={setNodeRef}
     style={{ viewTransitionName: `list-${column.id}` }}
   >
     <header className="column-header">
-      <span className="status-dot" />
+      <span className="status-dot" style={{ background: column.color }} />
       {renaming ? renameForm : title}
       {renameError && <p role="alert" id={renameErrorId} className="form-error rename-error">{renameError}</p>}
       <button

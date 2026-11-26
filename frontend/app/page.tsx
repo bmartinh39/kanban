@@ -15,6 +15,7 @@ import { prepareActions, type AssistantPlan } from "./assistant-commands";
 import { AddItemDialog } from "./add-item-dialog";
 import { BoardColumn } from "./board-column";
 import { boardLanes, useLaneCount } from "./board-lanes";
+import { nextListColor } from "./list-colors";
 import { CardDragPreview } from "./task-card";
 
 const emptyBoard: Column[] = [];
@@ -144,9 +145,9 @@ export default function Home() {
     if (!error) closeDialog();
     return error;
   }
-  async function createList(listId: string, name: string) {
+  async function createList(listId: string, name: string, color: string) {
     createdList.current = listId;
-    const error = await saveCommand({ type: "create-list", listId, name });
+    const error = await saveCommand({ type: "create-list", listId, name, color });
     if (error) createdList.current = null;
     else closeDialog();
     return error;
@@ -281,7 +282,7 @@ export default function Home() {
       onClose={closeDialog}
       onAdd={(id, title, details) => addCard(addingColumn.id, id, title, details)}
     />}
-    {addingList && <AddItemDialog onClose={closeDialog} onAdd={(listId, name) => createList(listId, name)} />}
+    {addingList && <AddItemDialog defaultColor={nextListColor(savedBoard.length)} onClose={closeDialog} onAdd={(listId, name, _details, color) => createList(listId, name, color)} />}
     {deletingCard && <DeleteCardDialog card={deletingCard.card} onClose={cancelDelete} onDelete={() => deleteCard(deletingCard)} />}
     {deletingList && <DeleteListDialog columns={[deletingList]} onClose={cancelDelete} onDelete={() => deleteList(deletingList)} />}
   </div>;
