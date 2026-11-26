@@ -10,7 +10,7 @@ export class BoardConflict extends Error {
 
 export function boardRepository(db: Database.Database) {
   function read(): BoardSnapshot {
-    const columns = db.prepare("SELECT id, name, color FROM columns ORDER BY position, id").all() as Omit<Column, "cards">[];
+    const columns = db.prepare("SELECT id, name, color, lane FROM columns ORDER BY position, id").all() as Omit<Column, "cards">[];
     const cards = db.prepare("SELECT id, column_id, title, details, priority FROM cards ORDER BY position, id").all() as CardRow[];
     const { revision } = db.prepare("SELECT revision FROM board_state WHERE id = 1").get() as { revision: number };
     return { revision, columns: columns.map(column => ({
@@ -35,15 +35,15 @@ export function boardRepository(db: Database.Database) {
         for (const id of previous.keys()) if (!remaining.has(id)) remove.run(id);
         const removeColumn = db.prepare("DELETE FROM columns WHERE id = ?");
         // Cards that move out of a deleted list must be written before its removal.
-        const rename = db.prepare("UPDATE columns SET name = ?, position = ? WHERE id = ?");
-        const insertColumn = db.prepare("INSERT INTO columns (id, name, color, position) VALUES (?, ?, ?, ?)");
+        const rename = db.prepare("UPDATE columns SET name = ?, lane = ?, position = ? WHERE id = ?");
+        const insertColumn = db.prepare("INSERT INTO columns (id, name, color, lane, position) VALUES (?, ?, ?, ?, ?)");
         const upsert = db.prepare(`INSERT INTO cards (id, column_id, title, details, position, priority) VALUES (?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET column_id = excluded.column_id, title = excluded.title,
           details = excluded.details, position = excluded.position, priority = excluded.priority`);
         columns.forEach((column, index) => {
           const oldColumn = before.columns.find(item => item.id === column.id);
-          if (!oldColumn) insertColumn.run(column.id, column.name, column.color, index);
-          else rename.run(column.name, index, column.id);
+          if (!oldColumn) insertColumn.run(column.id, column.name, column.color, column.lane, index);
+          else rename.run(column.name, column.lane, index, column.id);
           column.cards.forEach((card, position) => {
             const old = previous.get(card.id);
             if (!old || old.columnId !== column.id || old.position !== position || old.title !== card.title ||

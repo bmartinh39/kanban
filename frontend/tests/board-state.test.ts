@@ -9,20 +9,23 @@ describe("board state", () => {
     expect(boardReducer([initialBoard[0]], { type: "delete-list", columnId: "ideas" })).toEqual([]);
     expect(initialBoard).toHaveLength(5);
   });
-  it("moves a list to a new place in the board order, keeping its cards (issue #53)", () => {
-    const order = (board: typeof initialBoard) => board.map(column => column.id);
-    const forward = boardReducer(initialBoard, { type: "move-list", columnId: "ideas", index: 3 });
-    expect(order(forward)).toEqual(["planned", "progress", "review", "ideas", "done"]);
-    expect(forward[3]).toBe(initialBoard[0]);
-    expect(order(boardReducer(initialBoard, { type: "move-list", columnId: "done", index: 0 }))).toEqual(["done", "ideas", "planned", "progress", "review"]);
-    expect(boardReducer(initialBoard, { type: "move-list", columnId: "planned", index: 1 })).toBe(initialBoard);
+  it("moves a list within or between stored lanes, leaving other lanes alone (issue #53)", () => {
+    const lanes = (board: typeof initialBoard) => [0, 1, 2].map(lane => board.filter(column => column.lane === lane).map(column => column.id));
+    // Lanes start as [ideas, review], [planned, done], [progress].
+    const between = boardReducer(initialBoard, { type: "move-list", columnId: "done", lane: 0, index: 1 });
+    expect(lanes(between)).toEqual([["ideas", "done", "review"], ["planned"], ["progress"]]);
+    expect(between.find(column => column.id === "done")).toEqual({ ...initialBoard[4], lane: 0 });
+    expect(lanes(boardReducer(initialBoard, { type: "move-list", columnId: "ideas", lane: 2, index: 1 }))).toEqual([["review"], ["planned", "done"], ["progress", "ideas"]]);
+    expect(lanes(boardReducer(initialBoard, { type: "move-list", columnId: "ideas", lane: 0, index: 1 }))).toEqual([["review", "ideas"], ["planned", "done"], ["progress"]]);
+    expect(lanes(boardReducer(initialBoard, { type: "move-list", columnId: "ideas", lane: 3, index: 0 })).flat()).not.toContain("ideas");
+    expect(boardReducer(initialBoard, { type: "move-list", columnId: "planned", lane: 1, index: 0 })).toBe(initialBoard);
   });
   it("creates empty trimmed lists and supports renaming, adding and moving cards through them", () => {
-    let board = boardReducer(initialBoard, { type: "create-list", listId: "new-list", name: "  Released  ", color: "#6fd6a8" });
+    let board = boardReducer(initialBoard, { type: "create-list", listId: "new-list", name: "  Released  ", color: "#6fd6a8", lane: 0 });
     expect(board).toHaveLength(6);
-    expect(board[5]).toEqual({ id: "new-list", name: "Released", color: "#6fd6a8", cards: [] });
+    expect(board[5]).toEqual({ id: "new-list", name: "Released", color: "#6fd6a8", lane: 0, cards: [] });
     expect(board.slice(0, 5)).toEqual(initialBoard);
-    expect(boardReducer(board, { type: "create-list", listId: "blank", name: " \t ", color: "#6fd6a8" })).toBe(board);
+    expect(boardReducer(board, { type: "create-list", listId: "blank", name: " \t ", color: "#6fd6a8", lane: 0 })).toBe(board);
     board = boardReducer(board, { type: "rename", columnId: "new-list", name: "Shipped" });
     board = boardReducer(board, { type: "add", columnId: "new-list", card: { id: "new-card", title: "New task", details: "Context" } });
     board = boardReducer(board, { type: "move", cardId: "c1", columnId: "new-list", index: 0 });

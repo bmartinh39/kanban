@@ -21,9 +21,9 @@ describe("board HTTP API", () => {
     expect((await GET().json()).columns).toEqual(before.columns.slice(1));
   });
   it("creates empty lists, then renames and uses them in an atomic saved batch", async () => {
-    const created = await POST(request({ revision: 0, actions: [{ type: "create-list", listId: "new-list", name: "  Released  ", color: "#6fd6a8" }] }));
+    const created = await POST(request({ revision: 0, actions: [{ type: "create-list", listId: "new-list", name: "  Released  ", color: "#6fd6a8", lane: 0 }] }));
     expect(created.status).toBe(200);
-    expect((await created.json()).columns[5]).toEqual({ id: "new-list", name: "Released", color: "#6fd6a8", cards: [] });
+    expect((await created.json()).columns[5]).toEqual({ id: "new-list", name: "Released", color: "#6fd6a8", lane: 0, cards: [] });
     const response = await POST(request({ revision: 1, actions: [
       { type: "rename", columnId: "new-list", name: "Shipped" },
       { type: "add", columnId: "new-list", card: { id: "new-card", title: "Test", details: "Context" } },
@@ -34,7 +34,7 @@ describe("board HTTP API", () => {
     expect(saved.revision).toBe(2);
     expect(saved.columns[5].name).toBe("Shipped");
     expect(saved.columns[5].cards.map((card: { id: string }) => card.id)).toEqual(["c1", "new-card"]);
-    expect((await POST(request({ revision: 0, actions: [{ type: "create-list", listId: "stale", name: "Stale", color: "#6fd6a8" }] }))).status).toBe(409);
+    expect((await POST(request({ revision: 0, actions: [{ type: "create-list", listId: "stale", name: "Stale", color: "#6fd6a8", lane: 0 }] }))).status).toBe(409);
     expect(await GET().json()).toEqual(saved);
   });
   it("accepts the browser's Host address when Next normalizes its internal URL", async () => {
@@ -75,9 +75,9 @@ describe("board HTTP API", () => {
       { type: "delete-list", columnId: "" }, { type: "delete-list", columnId: "missing" }, { type: "delete-list", columnId: 4 },
       { type: "move-list", columnId: "ideas", index: 5 }, { type: "move-list", columnId: "ideas", index: -1 },
       { type: "move-list", columnId: "ideas", index: 1.5 }, { type: "move-list", columnId: "ideas" }, { type: "move-list", columnId: "missing", index: 0 },
-      { type: "create-list", listId: "", name: "List", color: "#6fd6a8" }, { type: "create-list", listId: "x", color: "#6fd6a8" },
-      { type: "create-list", listId: "x", name: 42, color: "#6fd6a8" }, { type: "create-list", listId: "x", name: " \t ", color: "#6fd6a8" },
-      { type: "create-list", listId: "ideas", name: "Duplicate ID", color: "#6fd6a8" }, { type: "create-list", listId: "c1", name: "Card ID", color: "#6fd6a8" },
+      { type: "create-list", listId: "", name: "List", color: "#6fd6a8", lane: 0 }, { type: "create-list", listId: "x", color: "#6fd6a8", lane: 0 },
+      { type: "create-list", listId: "x", name: 42, color: "#6fd6a8", lane: 0 }, { type: "create-list", listId: "x", name: " \t ", color: "#6fd6a8", lane: 0 },
+      { type: "create-list", listId: "ideas", name: "Duplicate ID", color: "#6fd6a8", lane: 0 }, { type: "create-list", listId: "c1", name: "Card ID", color: "#6fd6a8", lane: 0 },
       { type: "assistant", actions: [] }, { type: "delete", cardId: "" }, { type: "delete", cardId: "missing" },
       { type: "add", columnId: "ideas", card: { id: "c1", title: "Duplicate", details: "" } },
       { type: "add", columnId: "ideas", card: { id: "ideas", title: "Duplicate", details: "" } },

@@ -12,24 +12,7 @@ export const columnCoordinates: KeyboardCoordinateGetter = (event, { active, con
   if (!collisionRect || !current?.data.current) return currentCoordinates;
 
   const direction = code === KeyboardCode.Right || code === KeyboardCode.Down ? 1 : -1;
-  if (context.active?.data.current?.type === "list") {
-    const lists = context.droppableContainers.getEnabled().filter(({ data }) => data.current?.type === "column");
-    const source = lists.find(list => list.id === (context.over ?? { id: context.active!.data.current!.listId }).id);
-    const sourceRect = source && droppableRects.get(source.id);
-    if (!sourceRect) return currentCoordinates;
-    // Left/Right step through the board order; Up/Down stay in the lane (issue #53).
-    const target = horizontal
-      ? lists.find(list => list.data.current?.index === source!.data.current?.index + direction)
-      : lists.map(list => ({ list, rect: droppableRects.get(list.id)! }))
-        .filter(({ rect }) => rect && Math.abs(rect.left - sourceRect.left) < 2 && (rect.top - sourceRect.top) * direction > 0)
-        .toSorted((first, second) => (first.rect.top - second.rect.top) * direction)[0]?.list;
-    const targetRect = target && droppableRects.get(target.id);
-    if (!targetRect) return currentCoordinates;
-    return {
-      x: currentCoordinates.x + targetRect.left - collisionRect.left,
-      y: currentCoordinates.y + targetRect.top - collisionRect.top,
-    };
-  }
+  if (context.active?.data.current?.type === "list") return listCoordinates(context, horizontal, direction, currentCoordinates);
   let targetId: UniqueIdentifier | undefined;
   let targetIsColumn = false;
   const enabled = context.droppableContainers.getEnabled();
@@ -73,3 +56,52 @@ export const columnCoordinates: KeyboardCoordinateGetter = (event, { active, con
     y: currentCoordinates.y + targetY - (collisionRect.top + collisionRect.height / 2),
   };
 };
+
+type Context = Parameters<KeyboardCoordinateGetter>[1]["context"];
+
+/**
+ * Keyboard moves for a dragged list (issue #53). Its target is a slot in a visible lane: above one of the
+ * lane's lists or at the lane's end. Up and Down step through the lane's slots; Left and Right move to the
+ * neighboring lane's slot nearest in height. The dragged copy is placed so collision detection, which aims
+ * from just inside its top, finds that slot.
+ */
+function listCoordinates(context: Context, horizontal: boolean, direction: number, current: { x: number; y: number }) {
+  const { collisionRect, droppableRects } = context;
+  const enabled = context.droppableContainers.getEnabled();
+  const lanes = enabled.filter(({ id, data }) => data.current?.type === "lane" && droppableRects.has(id))
+    .toSorted((first, second) => droppableRects.get(first.id)!.left - droppableRects.get(second.id)!.left);
+  const listsIn = (lane: number) => enabled
+    .filter(({ id, data }) => data.current?.type === "column" && data.current.visibleLane === lane && droppableRects.has(id))
+    .map(({ id }) => droppableRects.get(id)!)
+    .toSorted((first, second) => first.top - second.top);
+  const target = context.over?.data.current;
+  const own = context.active!.data.current!;
+  const laneAt = (lane: number) => lanes.findIndex(container => container.data.current?.lane === lane);
+  let laneIndex = laneAt(target?.type === "lane" ? target.lane : target?.visibleLane ?? own.visibleLane);
+  if (!collisionRect || laneIndex < 0) return current;
+  const slotTop = (lane: number, slot: number) => {
+    const lists = listsIn(lanes[lane].data.current!.lane);
+    return slot < lists.length ? lists[slot].top : lists.length ? lists.at(-1)!.bottom : droppableRects.get(lanes[lane].id)!.top;
+  };
+  const currentLists = listsIn(lanes[laneIndex].data.current!.lane);
+  let slot = target?.type === "column"
+    ? currentLists.indexOf(droppableRects.get(context.over!.id)!)
+    : target?.type === "lane" ? currentLists.length : currentLists.indexOf(droppableRects.get(own.listId)!);
+  if (horizontal) {
+    const height = slotTop(laneIndex, slot);
+    laneIndex += direction;
+    if (!lanes[laneIndex]) return current;
+    const slots = listsIn(lanes[laneIndex].data.current!.lane).length + 1;
+    slot = Array.from({ length: slots }, (_, index) => index)
+      .reduce((best, index) => Math.abs(slotTop(laneIndex, index) - height) < Math.abs(slotTop(laneIndex, best) - height) ? index : best, 0);
+  } else {
+    slot = Math.max(0, Math.min(currentLists.length, slot + direction));
+  }
+  const laneRect = droppableRects.get(lanes[laneIndex].id)!;
+  const lists = listsIn(lanes[laneIndex].data.current!.lane);
+  const y = slot < lists.length ? lists[slot].top + 4 : (lists.at(-1)?.bottom ?? laneRect.top) + 4;
+  return {
+    x: current.x + laneRect.left + laneRect.width / 2 - (collisionRect.left + collisionRect.width / 2),
+    y: current.y + y - (collisionRect.top + 2),
+  };
+}

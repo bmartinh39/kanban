@@ -1,5 +1,5 @@
 import { boardReducer, cardPriorities, type BoardCommand, type Column } from "./board-state";
-import { batchLimit, fieldCharacterLimit, idCharacterLimit } from "./limits";
+import { batchLimit, fieldCharacterLimit, idCharacterLimit, laneLimit } from "./limits";
 import { isListColor } from "./list-colors";
 
 export type BoardSnapshot = { columns: Column[]; revision: number };
@@ -10,6 +10,7 @@ const record = (value: unknown): value is Record<string, unknown> => typeof valu
 const text = (value: unknown): value is string => typeof value === "string" && value.length <= fieldCharacterLimit;
 const id = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= idCharacterLimit;
 const validPriority = (value: unknown) => cardPriorities.some(priority => priority === value);
+const count = (value: unknown, below = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(value) && (value as number) >= 0 && (value as number) < below;
 export const validRevision = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 
 export function parseCommands(value: unknown): BoardCommand[] {
@@ -22,9 +23,9 @@ export function parseCommands(value: unknown): BoardCommand[] {
 
 function validCommand(action: Record<string, unknown>) {
   switch (action.type) {
-    case "create-list": return id(action.listId) && text(action.name) && isListColor(action.color);
+    case "create-list": return id(action.listId) && text(action.name) && isListColor(action.color) && count(action.lane, laneLimit);
     case "delete-list": return id(action.columnId);
-    case "move-list": return id(action.columnId) && Number.isSafeInteger(action.index) && (action.index as number) >= 0;
+    case "move-list": return id(action.columnId) && count(action.lane, laneLimit) && count(action.index);
     case "rename": return id(action.columnId) && text(action.name);
     case "delete": return id(action.cardId);
     case "set-priority": return id(action.cardId) && (action.priority === null || validPriority(action.priority));
@@ -51,7 +52,7 @@ export function applyCommands(board: Column[], actions: BoardCommand[]): Column[
     if (action.type === "add" && current.some(column => column.id === action.card.id || column.cards.some(card => card.id === action.card.id))) throw new InvalidCommand("This card ID is already in use.");
     if ((action.type === "add" && !action.card.title.trim()) || (action.type === "edit" && action.title !== undefined && !action.title.trim()) ||
       ((action.type === "rename" || action.type === "create-list") && !action.name.trim())) throw new InvalidCommand("Titles and column names cannot be blank.");
-    if (action.type === "move-list" && action.index >= current.length) throw new InvalidCommand("Invalid list position.");
+    if (action.type === "move-list" && action.index > current.filter(column => column.lane === action.lane && column.id !== action.columnId).length) throw new InvalidCommand("Invalid list position.");
     if (action.type === "move" && action.index !== undefined) {
       const destination = current.find(column => column.id === action.columnId)!;
       const max = destination.cards.length - (destination.cards.some(card => card.id === action.cardId) ? 1 : 0);

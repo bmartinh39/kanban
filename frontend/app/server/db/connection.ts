@@ -24,6 +24,11 @@ const migrations = [
    UPDATE columns SET color = CASE (SELECT count(*) FROM columns AS earlier
      WHERE earlier.position < columns.position OR (earlier.position = columns.position AND earlier.id < columns.id))
      WHEN 1 THEN '#79bdf0' WHEN 2 THEN '#8f98f6' WHEN 3 THEN '#c08cf0' WHEN 4 THEN '#5ccfe6' ELSE '#b0b9c8' END;`,
+  // Issue #53: lists keep the lane the user places them in. Existing lists start in the lanes the common
+  // three-lane desktop layout dealt them into, in board order.
+  `ALTER TABLE columns ADD COLUMN lane INTEGER NOT NULL DEFAULT 0 CHECK (lane >= 0);
+   UPDATE columns SET lane = (SELECT count(*) FROM columns AS earlier
+     WHERE earlier.position < columns.position OR (earlier.position = columns.position AND earlier.id < columns.id)) % 3;`,
 ];
 
 export function openDatabase(path = process.env.DATABASE_PATH || "./data/kanban.sqlite", migrate = false) {
@@ -43,10 +48,10 @@ export function openDatabase(path = process.env.DATABASE_PATH || "./data/kanban.
           db.pragma(`user_version = ${index + 1}`);
         }
         if (!db.prepare("SELECT id FROM board_state WHERE id = 1").get()) {
-          const column = db.prepare("INSERT INTO columns (id, name, color, position) VALUES (?, ?, ?, ?)");
+          const column = db.prepare("INSERT INTO columns (id, name, color, lane, position) VALUES (?, ?, ?, ?, ?)");
           const card = db.prepare("INSERT INTO cards (id, column_id, title, details, position) VALUES (?, ?, ?, ?, ?)");
           initialBoard.forEach((item, position) => {
-            column.run(item.id, item.name, item.color, position);
+            column.run(item.id, item.name, item.color, item.lane, position);
             item.cards.forEach((entry, order) => card.run(entry.id, item.id, entry.title, entry.details, order));
           });
           db.prepare("INSERT INTO board_state (id, revision) VALUES (1, 0)").run();

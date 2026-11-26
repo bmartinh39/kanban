@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent, type TouchEvent } from "react";
+import { useRef, useState, type MouseEvent, type ReactNode, type TouchEvent } from "react";
 import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Check, Columns3, Pencil, Plus, Trash2, X } from "lucide-react";
@@ -14,6 +14,11 @@ type BoardColumnProps = {
   column: Column;
   /** Position on the board, for keyboard moves between lists. */
   index: number;
+  /** The visible lane the list shows in, and how many lanes the board shows (issue #53). */
+  visibleLane: number;
+  laneCount: number;
+  /** A dragged list would land directly above this one. */
+  dropBefore: boolean;
   /** True while a save is pending or storage is unavailable; controls stay visible but inert. */
   busy: boolean;
   onAdd: (trigger: HTMLButtonElement) => void;
@@ -27,8 +32,8 @@ type BoardColumnProps = {
 };
 
 /** Where a card dragged in from another column would land, and the gap that previews it. */
-function useInsertionPreview(column: Column, index: number) {
-  const { setNodeRef } = useDroppable({ id: column.id, data: { type: "column", columnId: column.id, index } });
+function useInsertionPreview(column: Column, index: number, visibleLane: number) {
+  const { setNodeRef } = useDroppable({ id: column.id, data: { type: "column", columnId: column.id, index, visibleLane } });
   const { active, activeNodeRect, over, droppableRects } = useDndContext();
   const isOver = active?.data.current?.type === "card" && over?.data.current?.columnId === column.id;
   const inserting = isOver && active!.data.current?.columnId !== column.id;
@@ -43,18 +48,16 @@ function useInsertionPreview(column: Column, index: number) {
   return { setNodeRef, isOver, inserting, insertionIndex, gapHeight, insertionTop };
 }
 
-export function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRename, onEdit, onPriority }: BoardColumnProps) {
-  const { setNodeRef, isOver, inserting, insertionIndex, gapHeight, insertionTop } = useInsertionPreview(column, index);
+export function BoardColumn({ column, index, visibleLane, laneCount, dropBefore, busy, onAdd, onDelete, onDeleteList, onRename, onEdit, onPriority }: BoardColumnProps) {
+  const { setNodeRef, isOver, inserting, insertionIndex, gapHeight, insertionTop } = useInsertionPreview(column, index, visibleLane);
   const [renaming, setRenaming] = useState(false);
   // The header's free space drags the list (issue #53); its buttons and rename field keep their own behavior.
   const { attributes, listeners, setNodeRef: setDragRef, setActivatorNodeRef, isDragging } = useDraggable({
     id: `list:${column.id}`,
     disabled: busy || renaming,
-    data: { type: "list", listId: column.id, index },
+    data: { type: "list", listId: column.id, index, visibleLane, count: laneCount },
     attributes: { role: "group", roleDescription: "draggable list" },
   });
-  const { active, over } = useDndContext();
-  const dropTarget = active?.data.current?.type === "list" && !isDragging && over?.id === column.id;
   const controls = "button, input, form, .rename-error";
   const dragListeners = listeners && {
     ...listeners,
@@ -114,7 +117,7 @@ export function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList
   </>;
 
   return <section
-    className={`column${isOver ? " is-over" : ""}${isDragging ? " is-list-dragging" : ""}${dropTarget ? " list-drop-target" : ""}`}
+    className={`column${isOver ? " is-over" : ""}${isDragging ? " is-list-dragging" : ""}${dropBefore ? " list-drop-target" : ""}`}
     aria-label={`${column.name} column`}
     data-list={column.id}
     ref={node => { setNodeRef(node); setDragRef(node); }}
@@ -177,5 +180,17 @@ export function ListDragPreview({ column }: { column: Column }) {
       <span className="column-count">{column.cards.length}</span>
     </div>
     <div className="card-stack">{column.cards.map(card => <CardDragPreview key={card.id} card={card} />)}</div>
+  </div>;
+}
+
+/**
+ * One visible lane (issue #53). It spans the full board height so its free space below the lists, and the
+ * gaps between them, are list drop targets; `dropAtEnd` marks a list landing after the lane's last list.
+ */
+export function BoardLane({ lane, count, dropAtEnd, children }: { lane: number; count: number; dropAtEnd: boolean; children: ReactNode }) {
+  const { setNodeRef } = useDroppable({ id: `lane:${lane}`, data: { type: "lane", lane, count } });
+  return <div ref={setNodeRef} className="board-lane">
+    {children}
+    {dropAtEnd && <div className="lane-drop-end" aria-hidden="true" />}
   </div>;
 }

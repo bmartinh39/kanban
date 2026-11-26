@@ -1,7 +1,7 @@
 import { expect, test } from "./fixtures";
 
 test.beforeEach(async ({ page, boardState }) => {
-  boardState.columns = Array.from({ length: 12 }, (_, index) => ({ id: `list-${index}`, name: `List ${index + 1}`, color: "#79bdf0", cards: [] }));
+  boardState.columns = Array.from({ length: 12 }, (_, index) => ({ id: `list-${index}`, name: `List ${index + 1}`, color: "#79bdf0", lane: index % 3, cards: [] }));
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Delete list List 7", exact: true })).toBeVisible();
 });

@@ -46,7 +46,9 @@ h1, h2 { font-family: var(--heading-font); }
 .board-label h1 { font-size: clamp(19px, 2vw, 26px); font-weight: 800; letter-spacing: -.6px; margin: 0; }
 .board-scroll { padding-bottom: 12px; border-radius: 12px; }
 .board-grid { --column-gap: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: var(--column-gap); align-items: start; }
-.board-lane { display: flex; flex-direction: column; gap: var(--column-gap); min-width: 0; }
+/* Lanes stretch to the tallest so their free space is a list drop target (issue #53). */
+.board-lane { display: flex; flex-direction: column; gap: var(--column-gap); min-width: 0; align-self: stretch; }
+.lane-drop-end { height: 4px; margin-top: calc(var(--column-gap) / -2 - 2px); border-radius: 2px; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
 .column { min-width: 0; scroll-margin-top: 20px; }
 .list-delete:not([aria-disabled="true"]):hover { color: var(--danger); background: var(--danger-surface); }
 .empty-board { padding: 48px 24px; border: 1px dashed var(--line); border-radius: 12px; text-align: center; color: var(--muted); }

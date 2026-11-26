@@ -2,6 +2,7 @@
 export const fieldCharacterLimit = 20_000; // Card titles/details and list names.
 export const idCharacterLimit = 100;
 export const batchLimit = 20; // Board actions per save and assistant operations per plan.
+export const laneLimit = 12; // Stored list lanes; more than any screen shows at the 240px minimum list width.
 export const chatMessageCharacterLimit = 4_000;
 export const chatHistoryLimit = 20;
 export const chatHistoryByteLimit = 64_000; // UTF-8 bytes; keeps assistant requests well under the request budget.

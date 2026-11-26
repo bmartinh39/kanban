@@ -1,6 +1,7 @@
 import type { Active, Announcements, DragEndEvent, Over } from "@dnd-kit/core";
 import { hasSortableData } from "@dnd-kit/sortable";
-import type { BoardCommand, Column } from "./board-state";
+import { boardReducer, type BoardCommand, type Column } from "./board-state";
+import { visibleLanes } from "./board-lanes";
 
 export function getCardMove({ active, over }: Pick<DragEndEvent, "active" | "over">): Extract<BoardCommand, { type: "move" }> | undefined {
   if (active.data.current?.type !== "card" || !over?.data.current) return;
@@ -11,23 +12,53 @@ export function getCardMove({ active, over }: Pick<DragEndEvent, "active" | "ove
     : move;
 }
 
-/** A list dropped on another list takes that list's slot in the board order (issue #53). */
-export function getListMove({ active, over }: Pick<DragEndEvent, "active" | "over">): Extract<BoardCommand, { type: "move-list" }> | undefined {
-  if (active.data.current?.type !== "list" || over?.data.current?.type !== "column") return;
-  return { type: "move-list", columnId: active.data.current.listId, index: over.data.current.index };
+/**
+ * Where a dragged list lands (issue #53): over a list, it goes above that list in the list's lane; over a
+ * lane's free space, it goes to the end of that lane. Undefined when there is no target or nothing would change.
+ */
+export function getListMove({ active, over }: Pick<DragEndEvent, "active" | "over">, board: Column[]): Extract<BoardCommand, { type: "move-list" }> | undefined {
+  const listId: string | undefined = active.data.current?.type === "list" ? active.data.current.listId : undefined;
+  const target = over?.data.current;
+  if (!listId || !target) return;
+  const others = board.filter(column => column.id !== listId);
+  const inLane = (lane: number) => others.filter(column => column.lane === lane);
+  let lane: number;
+  let index: number;
+  if (target.type === "column") {
+    const before = others.find(column => column.id === target.columnId);
+    if (!before) return;
+    lane = before.lane;
+    index = inLane(lane).indexOf(before);
+  } else if (target.type === "lane") {
+    const last = visibleLanes(others, target.count)[target.lane]?.at(-1)?.list;
+    lane = last?.lane ?? target.lane;
+    index = inLane(lane).length;
+  } else return;
+  const move = { type: "move-list" as const, columnId: listId, lane, index };
+  return boardReducer(board, move) === board ? undefined : move;
+}
+
+function listLocation(board: Column[], listId: string, count: number) {
+  const lanes = visibleLanes(board, count);
+  const lane = lanes.findIndex(entries => entries.some(({ list }) => list.id === listId));
+  const position = lanes[lane].findIndex(({ list }) => list.id === listId);
+  return `lane ${lane + 1}, position ${position + 1} of ${lanes[lane].length}`;
 }
 
 function describeListDrag(board: Column[], phase: "pickup" | "preview" | "drop" | "cancel", active: Active, over: Over | null) {
-  const index = board.findIndex(column => column.id === active.data.current?.listId);
-  if (index < 0) return;
-  const name = board[index].name;
-  const origin = `position ${index + 1} of ${board.length}`;
-  if (phase === "pickup") return `Picked up list ${name} at ${origin}.`;
-  if (phase === "cancel") return `Cancelled moving list ${name}. It remains at ${origin}.`;
-  const move = getListMove({ active, over });
-  if (!move) return `${phase === "preview" ? "No drop target" : "No move made"}. List ${name} remains at ${origin}.`;
-  const location = `position ${move.index + 1} of ${board.length}`;
-  return phase === "preview" ? `Moving list ${name} to ${location}.` : `Dropped list ${name} at ${location}.`;
+  const { listId, count } = active.data.current!;
+  const list = board.find(column => column.id === listId);
+  if (!list) return;
+  const origin = listLocation(board, listId, count);
+  if (phase === "pickup") return `Picked up list ${list.name} in ${origin}.`;
+  if (phase === "cancel") return `Cancelled moving list ${list.name}. It remains in ${origin}.`;
+  const move = getListMove({ active, over }, board);
+  if (!move) {
+    const status = !over ? "No drop target" : phase === "preview" ? "No change" : "No move made";
+    return `${status}. List ${list.name} remains in ${origin}.`;
+  }
+  const location = listLocation(boardReducer(board, move), listId, count);
+  return phase === "preview" ? `Moving list ${list.name} to ${location}.` : `Dropped list ${list.name} in ${location}.`;
 }
 
 function describeDrag(

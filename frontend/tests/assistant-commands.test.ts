@@ -16,7 +16,7 @@ describe("assistant commands", () => {
     const result = actions.reduce(boardReducer, initialBoard);
     expect(result[0]).toEqual({ ...initialBoard[0], name: "Backlog" });
     // The assistant cannot choose colors; a sixth list takes the sixth swatch.
-    expect(result.at(-1)).toEqual({ id: expect.any(String), name: "Review", color: "#6fd6a8", cards: [] });
+    expect(result.at(-1)).toEqual({ id: expect.any(String), name: "Review", color: "#6fd6a8", lane: 0, cards: [] });
     expect(deletedLists).toEqual([]);
   });
   it("reports the actual deleted lists and card counts after earlier moves in a mixed batch", () => {

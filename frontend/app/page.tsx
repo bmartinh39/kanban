@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { flushSync } from "react-dom";
-import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, type DragCancelEvent, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, type DragCancelEvent, type DragEndEvent, type DragOverEvent } from "@dnd-kit/core";
 import { Bot, Columns3, LayoutGrid, Plus } from "lucide-react";
 import { columnCoordinates } from "./keyboard-coordinates";
 import { boardCollisionDetection } from "./drag-collision";
@@ -13,8 +13,9 @@ import { AssistantChat } from "./assistant-chat";
 import { DeleteCardDialog, DeleteListDialog } from "./delete-list-dialog";
 import { prepareActions, type AssistantPlan } from "./assistant-commands";
 import { AddItemDialog } from "./add-item-dialog";
-import { BoardColumn, ListDragPreview } from "./board-column";
-import { boardLanes, useLaneCount } from "./board-lanes";
+import { BoardColumn, BoardLane, ListDragPreview } from "./board-column";
+import { shortestLane, visibleLanes } from "./board-lanes";
+import { useLaneCount } from "./use-lane-count";
 import { nextListColor } from "./list-colors";
 import { CardDragPreview } from "./task-card";
 
@@ -59,7 +60,7 @@ export default function Home() {
   }
   // The batch is saved against the revision it was planned for; a changed board is rejected, never merged.
   async function applyAssistant(snapshot: Column[], plan: AssistantPlan, revision: number) {
-    const { actions, message } = prepareActions(snapshot, plan);
+    const { actions, message } = prepareActions(snapshot, plan, laneCount);
     await storage.save(actions, revision);
     return message;
   }
@@ -69,6 +70,7 @@ export default function Home() {
   const [deletingCard, setDeletingCard] = useState<{ card: Card; columnId: string } | null>(null);
   const [deletingList, setDeletingList] = useState<Column | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [listDrop, setListDrop] = useState<{ before?: string; laneEnd?: number } | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantCollapsed, setAssistantCollapsed] = useState(false);
   const assistantLauncher = useRef<HTMLButtonElement>(null);
@@ -155,7 +157,8 @@ export default function Home() {
   }
   async function createList(listId: string, name: string, color: string) {
     createdList.current = listId;
-    const error = await saveCommand({ type: "create-list", listId, name, color });
+    // New lists go to the bottom of the shortest visible lane (issue #53).
+    const error = await saveCommand({ type: "create-list", listId, name, color, lane: shortestLane(savedBoard, laneCount) });
     if (error) createdList.current = null;
     else closeDialog();
     return error;
@@ -178,16 +181,23 @@ export default function Home() {
 
   function handleDragCancel({ activatorEvent }: DragCancelEvent) {
     setActiveId(null);
+    setListDrop(null);
     const target = activatorEvent.target;
     if (activatorEvent instanceof KeyboardEvent && target instanceof HTMLElement) {
       // The handle may still have focus while the board is scrolled to another column.
       requestAnimationFrame(() => target.scrollIntoView({ block: "nearest", inline: "nearest" }));
     }
   }
+  // A dragged list's landing spot, marked only when the drop would change something (issue #53).
+  function handleDragOver(event: DragOverEvent) {
+    const target = event.over?.data.current;
+    setListDrop(!getListMove(event, board) ? null : target?.type === "lane" ? { laneEnd: target.lane } : { before: String(event.over!.id) });
+  }
   async function handleDragEnd(event: DragEndEvent) {
-    const move = getCardMove(event) ?? getListMove(event);
+    const move = getCardMove(event) ?? getListMove(event, board);
     setActiveId(null);
-    if (!move || (move.type === "move-list" && move.index === event.active.data.current?.index)) return;
+    setListDrop(null);
+    if (!move) return;
     if (event.activatorEvent instanceof KeyboardEvent) {
       if (move.type === "move") keyboardDrop.current = move.cardId;
       else keyboardListDrop.current = move.columnId;
@@ -254,16 +264,25 @@ export default function Home() {
         sensors={sensors}
         collisionDetection={args => boardCollisionDetection(args, boardViewport.current?.getBoundingClientRect(), new DOMRect(0, 0, window.innerWidth, window.innerHeight))}
         onDragStart={event => setActiveId(String(event.active.id))}
+        onDragOver={handleDragOver}
         onDragCancel={handleDragCancel}
         onDragEnd={handleDragEnd}
         accessibility={{ announcements, screenReaderInstructions: { draggable: dragInstructions } }}
       >
         <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}>
-          <div ref={laneGrid} className="board-grid">{boardLanes(board, laneCount).map((lane, laneIndex) => <div key={laneIndex} className="board-lane">
+          <div ref={laneGrid} className="board-grid">{visibleLanes(board, laneCount).map((lane, laneIndex) => <BoardLane
+            key={laneIndex}
+            lane={laneIndex}
+            count={laneCount}
+            dropAtEnd={listDrop?.laneEnd === laneIndex}
+          >
             {lane.map(({ list: column, index }) => <BoardColumn
             key={column.id}
             column={column}
             index={index}
+            visibleLane={laneIndex}
+            laneCount={laneCount}
+            dropBefore={listDrop?.before === column.id}
             busy={busy}
             onAdd={trigger => { addTrigger.current = trigger; setAddingTo(column.id); }}
             onDelete={(card, trigger) => { addTrigger.current = trigger; setDeletingCard({ card, columnId: column.id }); }}
@@ -272,7 +291,7 @@ export default function Home() {
             onEdit={(cardId, changes) => saveCommand({ type: "edit", cardId, ...changes })}
             onPriority={(cardId, priority) => dispatch({ type: "set-priority", cardId, priority })}
             />)}
-          </div>)}</div>
+          </BoardLane>)}</div>
           {!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}
         </div>
         <DragOverlay>{activeCard ? <CardDragPreview card={activeCard} /> : activeList && <ListDragPreview column={activeList} />}</DragOverlay>

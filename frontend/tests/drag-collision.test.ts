@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import type { ClientRect, CollisionDetection } from "@dnd-kit/core";
 import { boardCollisionDetection } from "../app/drag-collision";
-import { active, containers, rect, rectangles } from "./drag-fixtures";
+import { active, containers, listActive, listContainers, listRects, rect, rectangles } from "./drag-fixtures";
 
 function targetAt(x: number, y: number, pointer = true, viewport?: ClientRect, frame?: ClientRect) {
   const args: Parameters<CollisionDetection>[0] = {
@@ -86,18 +86,22 @@ it("allows a keyboard drag to target a column beyond the scroll viewport", () =>
   expect(targetAt(365, 114, false, boardViewport)).toBe("planned");
 });
 
-it("targets only lists for a dragged list, by pointer or by its header when moved by keyboard (issue #53)", () => {
-  const list = { id: "list:done", data: { current: { type: "list", listId: "done", index: 2 } }, rect: { current: { initial: rectangles.get("done")!, translated: null } } };
-  const listTarget = (x: number, y: number, pointer: boolean) => boardCollisionDetection({
-    active: list,
-    collisionRect: rect(x - 115, y - 20, 230, 540),
-    droppableContainers: containers,
-    droppableRects: rectangles,
+it("aims a dragged list at a lane slot: above the first list past the pointer, else the lane's end (issue #53)", () => {
+  const target = (x: number, y: number, pointer = true) => boardCollisionDetection({
+    active: listActive("progress"),
+    collisionRect: rect(x - 115, y - 2, 230, 540),
+    droppableContainers: listContainers,
+    droppableRects: listRects,
     pointerCoordinates: pointer ? { x, y } : null,
-  }).map(collision => collision.id);
-  // Over a card in Ideas, the list (not the card) is the target.
-  expect(listTarget(115, 100, true)).toEqual(["ideas"]);
-  expect(listTarget(365, 20, false)).toEqual(["planned"]);
-  // The gap between lists is not a target.
-  expect(listTarget(240, 100, true)).toEqual([]);
+  })[0]?.id;
+  expect(target(115, 100)).toBe("ideas");
+  expect(target(115, 400)).toBe("review");
+  expect(target(115, 880)).toBe("lane:0");
+  // Gaps between lists and lanes still aim at the nearest lane.
+  expect(target(115, 550)).toBe("review");
+  expect(target(240, 100)).toBe("ideas");
+  expect(target(865, 100)).toBe("lane:3");
+  expect(target(1200, 100)).toBe("lane:3");
+  // Moved by keyboard, the copy aims from just inside its top.
+  expect(target(365, 564, false)).toBe("done");
 });
