@@ -122,7 +122,7 @@ export default function Home() {
     keyboardDrop.current = null;
     const card = Array.from(boardViewport.current?.querySelectorAll<HTMLElement>("[data-testid]") ?? [])
       .find(element => element.dataset.testid === `card-${cardId}`);
-    card?.querySelector<HTMLButtonElement>(".drag-handle")?.focus();
+    card?.focus();
   }, [board, storage.saving]);
 
   function openAddList(event: MouseEvent<HTMLButtonElement>) {

@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect, type Locator, type Page } from "@playwright/test";
 import { initialBoard } from "../app/board-state";
 import { applyCommands, type BoardSnapshot } from "../app/board-commands";
 
@@ -32,4 +32,10 @@ export async function visibleBoardFrame(page: Page) {
 export async function expectKeyboardDropTarget(page: Page) {
   await expect(page.locator(".column.is-over")).toHaveCount(1);
   await page.evaluate(() => new Promise(resolve => setTimeout(resolve)));
+}
+
+// Cards drag from the free space around their text (issue #50); the left padding is clear of text and controls.
+export async function grabPoint(card: Locator) {
+  const { x, y, height } = (await card.boundingBox())!;
+  return { x: x + 6, y: y + height / 2 };
 }
