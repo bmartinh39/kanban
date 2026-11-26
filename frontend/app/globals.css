@@ -69,16 +69,20 @@ h1, h2 { font-family: var(--heading-font); }
 .insertion-preview { position: absolute; left: 0; right: 0; border: 1px dashed var(--accent); border-radius: 8px; background: #91f4cc12; pointer-events: none; }
 .task-card { --strip-height: 24px; --corner-width: 36px; position: relative; background: var(--raised); border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line), 0 2px 3px #0002; overflow-wrap: anywhere; transition: box-shadow .2s; }
 .task-card:hover { box-shadow: inset 0 0 0 1px var(--line), 0 4px 14px #0003; }
-.card-strip { display: grid; grid-template-columns: var(--corner-width) minmax(0, 1fr) var(--corner-width); height: var(--strip-height); border-radius: inherit; }
-.card-strip > :is(.drag-handle, .priority-bar, .delete-button) {
+.card-strip { display: grid; grid-template-columns: minmax(0, 1fr) var(--corner-width); height: var(--strip-height); border-radius: inherit; }
+.card-strip > :is(.priority-bar, .delete-button) {
   display: grid; place-items: center; border: 0; padding: 0; min-width: 0;
   box-shadow: inset 0 1px 0 #fff2; outline-offset: -3px;
 }
-/* Drag and delete corners stay neutral so only the priority carries color; they light up on hover. */
-.drag-handle, .delete-button { background: var(--hover); }
-.drag-handle { border-start-start-radius: inherit; cursor: grab; }
-.drag-handle:hover, .drag-handle:focus-visible, .drag-preview .drag-handle { background: linear-gradient(125deg, #c0ffe7ed, #7af3f5cc); }
-.drag-handle:active { cursor: grabbing; }
+/* The delete corner stays neutral so only the priority carries color; it lights up on hover. */
+.delete-button { background: var(--hover); }
+/* The whole card drags (issue #50): the free space shows a grab hand, the text and strip keep their own cursors. */
+.task-card { cursor: grab; }
+.task-card[aria-disabled="true"] { cursor: default; }
+.task-card:focus-visible { outline-offset: 2px; }
+.is-dragging, .drag-preview { cursor: grabbing; }
+/* Only during a drag, so a held press cannot select text; taps still place the caret where they land. */
+:root:has(.drag-preview) { -webkit-user-select: none; user-select: none; }
 /* Saves mark controls inert without dimming them, so other cards do not flicker. */
 .card-strip > [aria-disabled="true"], .list-delete[aria-disabled="true"] { cursor: default; }
 [data-priority="low"] { --priority-color: var(--priority-low); }
@@ -87,7 +91,7 @@ h1, h2 { font-family: var(--heading-font); }
 [data-priority="urgent"] { --priority-color: var(--priority-urgent); }
 /* Intensity grows with priority: no bar, then Low and Medium at 85% of their swatch color, then High and
    Urgent solid. Tints stay nearly opaque so the bar matches its menu swatch instead of dimming. */
-.card-strip > .priority-bar { display: flex; justify-content: center; align-items: center; position: relative; }
+.card-strip > .priority-bar { border-start-start-radius: inherit; display: flex; justify-content: center; align-items: center; position: relative; }
 .priority-bar[data-priority] { --strength: 100%; background: color-mix(in srgb, var(--priority-color) var(--strength), var(--raised)); color: var(--page); }
 .priority-bar:is([data-priority="low"], [data-priority="medium"]) { --strength: 85%; }
 .priority-bar[data-priority]:is(:hover, :focus-visible, [aria-expanded="true"]) { background: color-mix(in oklch, var(--priority-color) 85%, white); }
@@ -108,6 +112,8 @@ h1, h2 { font-family: var(--heading-font); }
 }
 @media (any-pointer: coarse) {
   .task-card { --strip-height: 32px; --corner-width: 44px; }
+  /* A long press drags instead of opening the callout. */
+  .task-card { -webkit-touch-callout: none; }
   :is(.priority-chevron, .delete-button svg, .priority-add) { opacity: 1; }
 }
 .priority-menu {

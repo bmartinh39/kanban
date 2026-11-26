@@ -1,5 +1,5 @@
 import { type Locator, type Page } from "@playwright/test";
-import { expect, test, expectKeyboardDropTarget } from "./fixtures";
+import { expect, test, expectKeyboardDropTarget, grabPoint } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -27,19 +27,19 @@ async function expectCardOrder(column: Locator, ids: string[]) {
 }
 
 async function pointerMove(page: Page, cardId: string, target: string) {
-  const handle = page.getByTestId(`card-${cardId}`).getByRole("button", { name: /^Move / });
+  const handle = page.getByTestId(`card-${cardId}`);
   await handle.scrollIntoViewIfNeeded();
   const column = page.getByRole("region", { name: `${target} column`, exact: true });
-  const from = (await handle.boundingBox())!;
+  const from = await grabPoint(handle);
   const to = (await column.boundingBox())!;
   const cards = column.getByRole("article");
   const lastCard = await cards.count() ? await cards.last().boundingBox() : null;
   const targetY = lastCard ? lastCard.y + lastCard.height + 12 : to.y + 80;
   // This wide-board scenario keeps both endpoints beside the persistent assistant.
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.move(from.x, from.y);
   await page.mouse.down();
-  await page.mouse.move(from.x + from.width / 2 + 10, from.y + from.height / 2, { steps: 5 });
-  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.move(from.x + 10, from.y, { steps: 5 });
+  await expect(handle).toHaveClass(/is-dragging/);
   await page.mouse.move(to.x + to.width / 2, targetY, { steps: 15 });
   await expect(column).toHaveClass(/is-over/);
   await page.mouse.up();
@@ -48,10 +48,10 @@ async function pointerMove(page: Page, cardId: string, target: string) {
 }
 
 async function keyboardMove(page: Page, title: string, target: string, cancel = false) {
-  const handle = page.getByRole("button", { name: `Move ${title}`, exact: true });
+  const handle = page.getByRole("article", { name: title, exact: true });
   await handle.focus();
   await page.keyboard.press("Space");
-  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(handle).toHaveClass(/is-dragging/);
   await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowRight");
   // Scrolling between rows updates the drop target asynchronously on narrow screens.
@@ -137,20 +137,17 @@ test("deletes only selected cards and allows adding to an empty column", async (
 test("keeps a flush card strip and reveals deletion on hover, focus, and touch", async ({ page }) => {
   const card = page.getByTestId("card-c1");
   const title = card.getByRole("heading");
-  const handle = card.getByRole("button", { name: /^Move / });
   const priority = card.getByRole("button", { name: /^Priority for / });
   const remove = card.getByRole("button", { name: /^Delete / });
   const trash = remove.locator("svg");
   await expect(page).toHaveTitle(/Forma/);
   await expect(title).toBeVisible();
-  await expect(handle.locator("svg")).toHaveCount(0);
+  // No drag corner: the priority bar starts at the card's edge (issue #50).
   const cardBounds = (await card.boundingBox())!;
-  const [left, middle, right] = await Promise.all([handle.boundingBox(), priority.boundingBox(), remove.boundingBox()]);
+  const [left, right] = await Promise.all([priority.boundingBox(), remove.boundingBox()]);
   expect(left).toMatchObject({ x: cardBounds.x, y: cardBounds.y });
-  expect(middle).toMatchObject({ y: left!.y, height: left!.height });
-  expect(right).toMatchObject({ y: left!.y, height: left!.height, width: left!.width });
-  expect(middle!.x).toBeCloseTo(left!.x + left!.width);
-  expect(right!.x).toBeCloseTo(middle!.x + middle!.width);
+  expect(right).toMatchObject({ y: left!.y, height: left!.height });
+  expect(right!.x).toBeCloseTo(left!.x + left!.width);
   expect(right!.x + right!.width).toBeCloseTo(cardBounds.x + cardBounds.width);
   const titleBounds = (await title.boundingBox())!;
   const detailsBounds = (await card.locator("p").boundingBox())!;
@@ -159,21 +156,22 @@ test("keeps a flush card strip and reveals deletion on hover, focus, and touch",
   const canHover = await page.evaluate(() => matchMedia("(hover: hover) and (pointer: fine)").matches);
   await expect(trash).toHaveCSS("opacity", canHover ? "0" : "1");
   if (canHover) {
-    const restingHandle = await handle.evaluate(element => getComputedStyle(element).backgroundImage);
     const restingRemove = await remove.evaluate(element => getComputedStyle(element).backgroundImage);
-    await handle.hover();
-    await expect(handle).toHaveCSS("cursor", "grab");
-    await expect(handle).not.toHaveCSS("background-image", restingHandle);
+    const free = await grabPoint(card);
+    await page.mouse.move(free.x, free.y);
+    await expect(card).toHaveCSS("cursor", "grab");
+    await expect(title).toHaveCSS("cursor", "text");
     await expect(trash).toHaveCSS("opacity", "1");
+    // The text stays selectable and editable: pressing on it and moving does not drag the card.
     await title.hover();
     await page.mouse.down();
     await page.mouse.move(titleBounds.x + titleBounds.width / 2 + 10, titleBounds.y + titleBounds.height / 2);
-    await expect(handle).not.toHaveAttribute("aria-pressed", "true");
+    await expect(card).not.toHaveClass(/is-dragging/);
     await page.mouse.up();
     await remove.hover();
     await expect(remove).not.toHaveCSS("background-image", restingRemove);
     await remove.click();
-    await expect(handle).not.toHaveAttribute("aria-pressed", "true");
+    await expect(card).not.toHaveClass(/is-dragging/);
     await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(remove).toBeFocused();
     await page.mouse.move(0, 0);
@@ -193,7 +191,6 @@ test("keeps a flush card strip and reveals deletion on hover, focus, and touch",
 test("opens priority independently of dragging and applies or clears the tint before saving", async ({ page, boardState }, info) => {
   const card = page.getByTestId("card-c1");
   const priority = card.getByRole("button", { name: /^Priority for / });
-  const handle = card.getByRole("button", { name: /^Move / });
   const menu = page.getByRole("menu", { name: /^Priority for / });
   const initialBounds = await card.boundingBox();
   await expect(priority).toHaveAccessibleName(/: None$/);
@@ -238,7 +235,7 @@ test("opens priority independently of dragging and applies or clears the tint be
     // The level is named in the bar, not shown by color alone (issue #44).
     await expect(priority).toHaveText("Medium");
     await expect(priority).toBeFocused();
-    await expect(handle).not.toHaveAttribute("aria-pressed", "true");
+    await expect(card).not.toHaveClass(/is-dragging/);
     await expect(page.locator(".drag-preview")).toHaveCount(0);
     expect(await card.boundingBox()).toEqual(initialBounds);
     expect(boardState.revision).toBe(0);
@@ -273,10 +270,10 @@ test("opens priority independently of dragging and applies or clears the tint be
   }
 });
 
-test("touch swipes scroll the board and holding the drag corner moves a card", async ({ page }, info) => {
+test("touch swipes scroll the board and holding a card moves it", async ({ page }, info) => {
   test.skip(info.project.name !== "mobile", "Uses Chromium touch input");
   await page.setViewportSize({ width: 390, height: 900 });
-  const surface = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  const surface = page.getByTestId("card-c1");
   const sensor = await page.context().newCDPSession(page);
   const { x, y, width, height } = (await surface.boundingBox())!;
   const center = { x: x + width / 2, y: y + height / 2 };
@@ -286,14 +283,14 @@ test("touch swipes scroll the board and holding the drag corner moves a card", a
   }
   await sensor.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(20);
-  await expect(surface).not.toHaveAttribute("aria-pressed", "true");
+  await expect(surface).not.toHaveClass(/is-dragging/);
   await page.evaluate(() => window.scrollTo(0, 0));
 
   const second = (await page.getByTestId("card-c2").boundingBox())!;
   const target = { x: center.x, y: second.y + second.height / 2 };
   expect(target.y).toBeLessThan(page.viewportSize()!.height);
   await sensor.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [center] });
-  await expect(surface).toHaveAttribute("aria-pressed", "true");
+  await expect(surface).toHaveClass(/is-dragging/);
   await sensor.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [target] });
   await expect(page.locator(".drag-preview")).toBeVisible();
   await sensor.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
@@ -313,9 +310,9 @@ test("appends by pointer in populated and empty columns and reorders after a sec
   await expectCardOrder(done, []);
   await pointerMove(page, "c1", "Done");
   await expectCardOrder(done, ["c1"]);
-  const onlyHandle = done.getByRole("button", { name: /^Move / });
+  const onlyHandle = done.getByRole("article");
   await onlyHandle.press("Space");
-  await expect(onlyHandle).toHaveAttribute("aria-pressed", "true");
+  await expect(onlyHandle).toHaveClass(/is-dragging/);
   await expect(done).toHaveClass(/is-over/);
   await page.keyboard.press("ArrowUp");
   await page.keyboard.press("ArrowDown");
@@ -326,9 +323,9 @@ test("appends by pointer in populated and empty columns and reorders after a sec
 
   await pointerMove(page, "c2", "Done");
   await expectCardOrder(done, ["c1", "c2"]);
-  const secondHandle = done.getByTestId("card-c2").getByRole("button", { name: /^Move / });
+  const secondHandle = done.getByTestId("card-c2");
   await secondHandle.press("Space");
-  await expect(secondHandle).toHaveAttribute("aria-pressed", "true");
+  await expect(secondHandle).toHaveClass(/is-dragging/);
   await expect(done).toHaveClass(/is-over/);
   await page.keyboard.press("ArrowUp");
   const liveRegion = page.getByRole("status").and(page.locator("[aria-live=assertive]"));
@@ -343,7 +340,7 @@ test("appends by pointer in populated and empty columns and reorders after a sec
 test("appends, cancels, and reorders by keyboard after scrolling, then persists on reload", async ({ page }, testInfo) => {
   const ideas = page.getByRole("region", { name: "Ideas column", exact: true });
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
-  const handle = planned.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  const handle = planned.getByTestId("card-c1");
   const title = "Give the homepage a fresh start";
   await keyboardMove(page, title, "Planned");
   await expectCardOrder(planned, ["c4", "c5", "c1"]);
@@ -357,7 +354,7 @@ test("appends, cancels, and reorders by keyboard after scrolling, then persists 
   }
   await expect(handle).toBeInViewport();
   await handle.press("Space");
-  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(handle).toHaveClass(/is-dragging/);
   await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowUp");
   await expect.poll(() => planned.getByTestId("card-c5").evaluate(card => card.style.transform)).toContain("translate3d");
@@ -380,7 +377,7 @@ test("announces sorting a new card using its title, renamed column, and position
   await columnName.press("Enter");
 
   const incoming = page.getByRole("region", { name: "Incoming column", exact: true });
-  const handle = incoming.getByRole("button", { name: "Move Write release notes", exact: true });
+  const handle = incoming.getByRole("article", { name: "Write release notes", exact: true });
   const liveRegion = page.getByRole("status").and(page.locator("[aria-live=assertive]"));
   await handle.press("Space");
   await expect(incoming).toHaveClass(/is-over/);

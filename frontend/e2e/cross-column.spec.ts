@@ -1,21 +1,19 @@
 import type { Page } from "@playwright/test";
-import { expect, test, visibleBoardFrame, expectKeyboardDropTarget } from "./fixtures";
+import { expect, test, visibleBoardFrame, expectKeyboardDropTarget, grabPoint } from "./fixtures";
 
 const orders = [["c1", "c4", "c5"], ["c4", "c1", "c5"], ["c4", "c5", "c1"]];
 const column = (page: Page) => page.getByRole("region", { name: "Planned column", exact: true });
-const handle = (page: Page) => page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+const handle = (page: Page) => page.getByTestId("card-c1");
 
 async function pointerStart(page: Page) {
   const source = handle(page);
   await source.evaluate(element => element.scrollIntoView({ block: "start" }));
   await page.evaluate(() => window.scrollBy(0, -80));
-  const bounds = (await source.boundingBox())!;
-  const x = bounds.x + bounds.width / 2;
-  const y = bounds.y + bounds.height / 2;
+  const { x, y } = await grabPoint(source);
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 8, y);
-  await expect(source).toHaveAttribute("aria-pressed", "true");
+  await expect(source).toHaveClass(/is-dragging/);
 }
 
 async function pointerSlot(page: Page, index: number) {
@@ -68,7 +66,7 @@ for (const input of ["pointer", "keyboard"] as const) {
           await pointerSlot(page, index);
         } else {
           await handle(page).press("Space");
-          await expect(handle(page)).toHaveAttribute("aria-pressed", "true");
+          await expect(handle(page)).toHaveClass(/is-dragging/);
           await expectKeyboardDropTarget(page);
           await page.keyboard.press("ArrowRight");
           await expect(column(page)).toHaveClass(/is-over/);
@@ -140,10 +138,10 @@ for (const ending of ["cancel", "outside"] as const) {
 }
 
 test("inserts into the current destination order after it has been reordered", async ({ page, boardState }) => {
-  const first = page.getByTestId("card-c4").getByRole("button", { name: /^Move / });
+  const first = page.getByTestId("card-c4");
   await first.scrollIntoViewIfNeeded();
   await first.press("Space");
-  await expect(first).toHaveAttribute("aria-pressed", "true");
+  await expect(first).toHaveClass(/is-dragging/);
   await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("status")).toContainText("Planned, position 2 of 2");

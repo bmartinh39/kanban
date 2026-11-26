@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { Page } from "@playwright/test";
-import { expect, test, visibleBoardFrame, expectKeyboardDropTarget } from "./fixtures";
+import { expect, test, visibleBoardFrame, expectKeyboardDropTarget, grabPoint } from "./fixtures";
 
 const list = (page: Page, name: string) => page.getByRole("region", { name: `${name} column`, exact: true });
 async function createList(page: Page, name: string) {
@@ -153,26 +153,24 @@ for (const input of ["pointer", "keyboard"] as const) {
   test(`${input} moves cards into and out of a new list without losing content or IDs`, async ({ page, boardState }) => {
     await createList(page, "Released");
     const original = structuredClone(boardState.columns[4].cards[0]);
-    const handle = () => page.getByTestId(`card-${original.id}`).getByRole("button", { name: /^Move / });
+    const handle = () => page.getByTestId(`card-${original.id}`);
     for (const targetName of ["Released", "Done"]) {
       await expect(page.locator(".drag-preview")).toHaveCount(0);
       const target = list(page, targetName);
       if (input === "keyboard") {
         await handle().focus();
         await page.keyboard.press("Space");
-        await expect(handle()).toHaveAttribute("aria-pressed", "true");
+        await expect(handle()).toHaveClass(/is-dragging/);
         await expectKeyboardDropTarget(page);
         await page.keyboard.press(targetName === "Released" ? "ArrowRight" : "ArrowLeft");
       } else {
         await handle().evaluate(element => element.scrollIntoView({ block: "start" }));
         await page.evaluate(() => window.scrollBy(0, -80));
-        const source = (await handle().boundingBox())!;
-        const x = source.x + source.width / 2;
-        const y = source.y + source.height / 2;
+        const { x, y } = await grabPoint(handle());
         await page.mouse.move(x, y);
         await page.mouse.down();
         await page.mouse.move(x + 9, y);
-        await expect(handle()).toHaveAttribute("aria-pressed", "true");
+        await expect(handle()).toHaveClass(/is-dragging/);
         // Scroll while dragging so the destination fits inside the real board frame.
         await target.locator(".column-header").evaluate(element => element.scrollIntoView({ block: "center", inline: "center" }));
         const bounds = (await target.boundingBox())!;

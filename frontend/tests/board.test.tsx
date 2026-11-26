@@ -96,7 +96,7 @@ describe("board interface", () => {
     const user = userEvent.setup();
     render(<Home />);
     await screen.findByRole("button", { name: "Rename Ideas" });
-    const handle = screen.getByRole("button", { name: "Move Give the homepage a fresh start" });
+    const handle = screen.getByRole("article", { name: "Give the homepage a fresh start" });
     handle.focus();
     await user.keyboard("[Space]");
     expect(screen.getByRole("status")).toHaveTextContent(
@@ -106,6 +106,15 @@ describe("board interface", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Dropped Give the homepage a fresh start in Ideas, position 1 of 3.",
     );
+  });
+  it("types a space while editing a card instead of picking the card up", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(await screen.findByRole("heading", { name: "Give the homepage a fresh start" }));
+    const title = screen.getByLabelText("Title for Give the homepage a fresh start");
+    await user.type(title, " x");
+    expect(title).toHaveValue("Give the homepage a fresh start x");
+    expect(screen.getByRole("article", { name: "Give the homepage a fresh start" })).not.toHaveClass("is-dragging");
   });
   it("validates card creation, saves title and details, and updates the selected column", async () => {
     const user = userEvent.setup();

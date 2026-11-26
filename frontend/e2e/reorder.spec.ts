@@ -1,5 +1,5 @@
 import { type Locator, type Page } from "@playwright/test";
-import { expect, test, visibleBoardFrame, expectKeyboardDropTarget } from "./fixtures";
+import { expect, test, visibleBoardFrame, expectKeyboardDropTarget, grabPoint } from "./fixtures";
 
 const originalOrder = ["card-c1", "card-c2", "card-c3"];
 const middleOrder = ["card-c2", "card-c1", "card-c3"];
@@ -27,33 +27,31 @@ async function expectPreview(target: Locator) {
 }
 
 async function keyboardReorder(page: Page, direction: "ArrowDown" | "ArrowUp", targets: string[]) {
-  const handle = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  const handle = page.getByTestId("card-c1");
   await handle.focus();
   await page.keyboard.press("Space");
-  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(handle).toHaveClass(/is-dragging/);
   await expectKeyboardDropTarget(page);
   for (const target of targets) {
     await page.keyboard.press(direction);
     await expectPreview(page.getByTestId(target));
   }
   await page.keyboard.press("Space");
-  await expect(handle).not.toHaveAttribute("aria-pressed", "true");
+  await expect(handle).not.toHaveClass(/is-dragging/);
   await expect(handle).toBeFocused();
 }
 
 async function pointerReorder(page: Page, targetId: string, screenshot?: string) {
-  const handle = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  const handle = page.getByTestId("card-c1");
   const target = page.getByTestId(targetId);
   // Keep the drop point clear of the viewport's auto-scroll edge.
   await handle.evaluate(card => card.scrollIntoView({ block: "start", inline: "nearest" }));
   await page.evaluate(() => window.scrollBy(0, -80));
-  const from = await handle.boundingBox();
-  const x = from!.x + from!.width / 2;
-  const y = from!.y + from!.height / 2;
+  const { x, y } = await grabPoint(handle);
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 8, y);
-  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(handle).toHaveClass(/is-dragging/);
   await target.evaluate(card => card.scrollIntoView({ block: "center", inline: "nearest" }));
   // Scrolling can trigger a preview before the pointer moves. Aim at the layout slot.
   const to = await target.evaluate(card => {
@@ -66,7 +64,7 @@ async function pointerReorder(page: Page, targetId: string, screenshot?: string)
   await expectPreview(target);
   if (screenshot) await page.screenshot({ path: screenshot, scale: "css" });
   await page.mouse.up();
-  await expect(handle).not.toHaveAttribute("aria-pressed", "true");
+  await expect(handle).not.toHaveClass(/is-dragging/);
   await expect(page.locator(".drag-preview")).toHaveCount(0);
 }
 
@@ -115,12 +113,12 @@ test("pointer reorders between unequal-height cards without changing their conte
 test("ignores keyboard boundary moves and cancels a sorting preview with focus restored", async ({ page }) => {
   const ideas = page.getByRole("region", { name: "Ideas column", exact: true });
   const originalContent = await cardContent(ideas);
-  const first = ideas.getByTestId("card-c1").getByRole("button", { name: /^Move / });
-  const last = ideas.getByTestId("card-c3").getByRole("button", { name: /^Move / });
+  const first = ideas.getByTestId("card-c1");
+  const last = ideas.getByTestId("card-c3");
 
   for (const [handle, direction] of [[first, "ArrowUp"], [last, "ArrowDown"]] as const) {
     await handle.press("Space");
-    await expect(handle).toHaveAttribute("aria-pressed", "true");
+    await expect(handle).toHaveClass(/is-dragging/);
     await expect(ideas).toHaveClass(/is-over/);
     await page.keyboard.press(direction);
     await page.keyboard.press("Space");
@@ -130,7 +128,7 @@ test("ignores keyboard boundary moves and cancels a sorting preview with focus r
   }
 
   await first.press("Space");
-  await expect(first).toHaveAttribute("aria-pressed", "true");
+  await expect(first).toHaveClass(/is-dragging/);
   await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowDown");
   await expectPreview(ideas.getByTestId("card-c2"));
@@ -149,24 +147,22 @@ test("dropping in the gutter beside the board leaves the order unchanged", async
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
   const scroll = page.getByLabel("Project board columns");
   const originalContent = await cardContent(ideas);
-  const handle = ideas.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  const handle = ideas.getByTestId("card-c1");
   await handle.scrollIntoViewIfNeeded();
 
   const target = ideas.getByTestId("card-c2");
-  const [source, board, nextCard] = await Promise.all([
-    handle.boundingBox(),
+  const [{ x, y }, board, nextCard] = await Promise.all([
+    grabPoint(handle),
     scroll.boundingBox(),
     target.boundingBox(),
   ]);
-  const x = source!.x + source!.width / 2;
-  const y = source!.y + source!.height / 2;
   const gutterX = Math.floor(board!.x + board!.width) + 8;
   expect(gutterX).toBeLessThan(390);
 
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 8, y);
-  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(handle).toHaveClass(/is-dragging/);
   await expect(ideas).toHaveClass(/is-over/);
   const targetY = nextCard!.y + nextCard!.height / 2;
   await page.mouse.move(x, targetY, { steps: 10 });
@@ -220,11 +216,11 @@ for (const input of ["pointer", "keyboard"] as const) {
       });
       const targetColumn = page.getByRole("region", { name: `${destination} column`, exact: true });
       const expectedOrder = destination === "Ideas" ? middleOrder : input === "pointer" ? ["card-c1", "card-c4", "card-c5"] : ["card-c4", "card-c5", "card-c1"];
-      const handle = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+      const handle = page.getByTestId("card-c1");
       try {
         if (input === "keyboard") {
           await handle.press("Space");
-          await expect(handle).toHaveAttribute("aria-pressed", "true");
+          await expect(handle).toHaveClass(/is-dragging/);
           await expectKeyboardDropTarget(page);
           await page.keyboard.press(destination === "Ideas" ? "ArrowDown" : "ArrowRight");
           if (destination === "Ideas") await expectPreview(page.getByTestId("card-c2"));
@@ -235,13 +231,11 @@ for (const input of ["pointer", "keyboard"] as const) {
         } else {
           await handle.evaluate(element => element.scrollIntoView({ block: "start" }));
           await page.evaluate(() => window.scrollBy(0, -80));
-          const from = await handle.boundingBox();
-          const x = from!.x + from!.width / 2;
-          const y = from!.y + from!.height / 2;
+          const { x, y } = await grabPoint(handle);
           await page.mouse.move(x, y);
           await page.mouse.down();
           await page.mouse.move(x + 8, y);
-          await expect(handle).toHaveAttribute("aria-pressed", "true");
+          await expect(handle).toHaveClass(/is-dragging/);
           await targetColumn.locator(".column-header").evaluate(element => element.scrollIntoView({ block: "start" }));
           await page.evaluate(() => window.scrollBy(0, -80));
           const target = await targetColumn.boundingBox();
@@ -270,7 +264,7 @@ for (const input of ["pointer", "keyboard"] as const) {
       } finally { release(); }
       await expect(page.locator(".save-status")).toHaveText("Saved");
       await expectOrder(targetColumn, expectedOrder);
-      if (input === "keyboard") await expect(targetColumn.getByRole("button", { name: /^Move Give the homepage/ })).toBeFocused();
+      if (input === "keyboard") await expect(targetColumn.getByRole("article", { name: /^Give the homepage/ })).toBeFocused();
       expect(boardState.revision).toBe(1);
       expect(writes).toBe(1);
       expect(errors).toEqual([]);
@@ -290,11 +284,11 @@ test("a rejected drop recovers the saved board without replaying the move", asyn
     boardState.revision++;
     await route.fulfill({ status: 409, json: { error: "The board changed. Reload and retry." } });
   });
-  const handle = page.getByTestId("card-c1").getByRole("button", { name: /^Move / });
+  const handle = page.getByTestId("card-c1");
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
   try {
     await handle.press("Space");
-    await expect(handle).toHaveAttribute("aria-pressed", "true");
+    await expect(handle).toHaveClass(/is-dragging/);
     await expectKeyboardDropTarget(page);
     await page.keyboard.press("ArrowRight");
     await expect(planned).toHaveClass(/is-over/);

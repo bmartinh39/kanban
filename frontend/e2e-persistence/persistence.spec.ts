@@ -53,10 +53,10 @@ test("new lists and their cards persist, and competing list creation rejects sta
   await expect(target.getByRole("heading", { name: title })).toBeVisible();
   await expect(page.locator(".save-status")).toHaveText("Saved");
   const content = (await snapshot(page)).columns.at(-1)!.cards[0];
-  const handle = page.getByRole("button", { name: `Move ${title}`, exact: true });
+  const handle = page.getByRole("article", { name: title, exact: true });
   await handle.focus();
   await page.keyboard.press("Space");
-  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(handle).toHaveClass(/is-dragging/);
   await expect(target).toHaveClass(/is-over/);
   await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowLeft");
@@ -66,7 +66,7 @@ test("new lists and their cards persist, and competing list creation rejects sta
   await expect(page.locator(".save-status")).toHaveText("Saved");
   await expect(handle).toHaveAttribute("aria-disabled", "false");
   await handle.press("Space");
-  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(handle).toHaveClass(/is-dragging/);
   await expect(previous).toHaveClass(/is-over/);
   await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowRight");
@@ -102,10 +102,10 @@ test("real database preserves card content, priority, names, moves and order on 
   await priority.click();
   await page.getByRole("menuitemradio", { name: "Medium", exact: true }).click();
   await expect(page.locator(".save-status")).toHaveText("Saved");
-  const handle = page.getByRole("button", { name: `Move ${title}`, exact: true });
+  const handle = page.getByRole("article", { name: title, exact: true });
   await handle.focus();
   await page.keyboard.press("Space");
-  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(handle).toHaveClass(/is-dragging/);
   await expect(page.getByRole("region", { name: "Ideas column" })).toHaveClass(/is-over/);
   await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowUp");
@@ -114,7 +114,7 @@ test("real database preserves card content, priority, names, moves and order on 
   await expect.poll(async () => (await snapshot(page)).columns[0].cards.at(-2)?.title).toBe(title);
   await expect(handle).toHaveAttribute("aria-disabled", "false");
   await handle.press("Space");
-  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  await expect(handle).toHaveClass(/is-dragging/);
   await expect(page.getByRole("region", { name: "Ideas column" })).toHaveClass(/is-over/);
   await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowRight");
