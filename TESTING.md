@@ -15,7 +15,7 @@ What a change implements decides which tests it needs, not a coverage number. Te
 
 ## Full gate (CI)
 
-Pull requests that only change Markdown files or `.claude/` skip the test jobs. Otherwise CI runs lint, typecheck, `npm run test:coverage` (a report only; no thresholds), the full UI suite in Chromium, Firefox and mobile Chromium, a production build, and the Chromium persistence suite. Do not delete regression cases or add retries to make it pass.
+Pull requests that only change Markdown files or `.claude/` skip the test jobs. Otherwise CI runs lint, typecheck, `npm run test:coverage` (a report with floors of 95% lines/functions and 90% branches for the contract modules only: board commands and state, assistant commands, `app/server/**` and `app/api/**`), the full UI suite in Chromium, Firefox and mobile Chromium, a production build, and the Chromium persistence suite. Do not lower those floors, delete regression cases, or add retries to make it pass.
 
 ## Isolation rules
 
