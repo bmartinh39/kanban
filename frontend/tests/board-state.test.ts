@@ -10,11 +10,11 @@ describe("board state", () => {
     expect(initialBoard).toHaveLength(5);
   });
   it("creates empty trimmed lists and supports renaming, adding and moving cards through them", () => {
-    let board = boardReducer(initialBoard, { type: "create-list", listId: "new-list", name: "  Released  " });
+    let board = boardReducer(initialBoard, { type: "create-list", listId: "new-list", name: "  Released  ", color: "#6fd6a8" });
     expect(board).toHaveLength(6);
-    expect(board[5]).toEqual({ id: "new-list", name: "Released", cards: [] });
+    expect(board[5]).toEqual({ id: "new-list", name: "Released", color: "#6fd6a8", cards: [] });
     expect(board.slice(0, 5)).toEqual(initialBoard);
-    expect(boardReducer(board, { type: "create-list", listId: "blank", name: " \t " })).toBe(board);
+    expect(boardReducer(board, { type: "create-list", listId: "blank", name: " \t ", color: "#6fd6a8" })).toBe(board);
     board = boardReducer(board, { type: "rename", columnId: "new-list", name: "Shipped" });
     board = boardReducer(board, { type: "add", columnId: "new-list", card: { id: "new-card", title: "New task", details: "Context" } });
     board = boardReducer(board, { type: "move", cardId: "c1", columnId: "new-list", index: 0 });

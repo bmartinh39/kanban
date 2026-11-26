@@ -19,6 +19,11 @@ const migrations = [
    DROP TABLE cards;
    ALTER TABLE cards_next RENAME TO cards;
    CREATE INDEX cards_column_position ON cards(column_id, position);`,
+  // Issue #51: lists keep their own dot color. Existing lists keep the color their position gave them.
+  `ALTER TABLE columns ADD COLUMN color TEXT NOT NULL DEFAULT '#b0b9c8' CHECK (color GLOB '#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]');
+   UPDATE columns SET color = CASE (SELECT count(*) FROM columns AS earlier
+     WHERE earlier.position < columns.position OR (earlier.position = columns.position AND earlier.id < columns.id))
+     WHEN 1 THEN '#79bdf0' WHEN 2 THEN '#8f98f6' WHEN 3 THEN '#c08cf0' WHEN 4 THEN '#5ccfe6' ELSE '#b0b9c8' END;`,
 ];
 
 export function openDatabase(path = process.env.DATABASE_PATH || "./data/kanban.sqlite", migrate = false) {
@@ -38,10 +43,10 @@ export function openDatabase(path = process.env.DATABASE_PATH || "./data/kanban.
           db.pragma(`user_version = ${index + 1}`);
         }
         if (!db.prepare("SELECT id FROM board_state WHERE id = 1").get()) {
-          const column = db.prepare("INSERT INTO columns (id, name, position) VALUES (?, ?, ?)");
+          const column = db.prepare("INSERT INTO columns (id, name, color, position) VALUES (?, ?, ?, ?)");
           const card = db.prepare("INSERT INTO cards (id, column_id, title, details, position) VALUES (?, ?, ?, ?, ?)");
           initialBoard.forEach((item, position) => {
-            column.run(item.id, item.name, position);
+            column.run(item.id, item.name, item.color, position);
             item.cards.forEach((entry, order) => card.run(entry.id, item.id, entry.title, entry.details, order));
           });
           db.prepare("INSERT INTO board_state (id, revision) VALUES (1, 0)").run();

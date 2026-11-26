@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import Home from "../app/page";
 
 describe("board interface", () => {
@@ -106,6 +106,29 @@ describe("board interface", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Dropped Give the homepage a fresh start in Ideas, position 1 of 3.",
     );
+  });
+  it("creates a list with the color chosen from the swatches or the wheel (issue #51)", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(await screen.findByRole("button", { name: "Add list" }));
+    // A sixth list defaults to the sixth swatch.
+    expect(screen.getByRole("button", { name: "Green" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Coral" }));
+    expect(screen.getByRole("button", { name: "Coral" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Green" })).toHaveAttribute("aria-pressed", "false");
+    const wheel = screen.getByRole("slider", { name: "Color wheel" });
+    wheel.focus();
+    await user.keyboard("{ArrowRight}{Shift>}{ArrowDown}{/Shift}");
+    // Coral sits at hue 352; turning the wheel and lowering saturation leaves the swatches.
+    expect(wheel).toHaveAttribute("aria-valuetext", "Hue 357 degrees, saturation 65 percent");
+    expect(screen.getByRole("button", { name: "Coral" })).toHaveAttribute("aria-pressed", "false");
+    await user.type(screen.getByLabelText(/List name/), "Blocked{Enter}");
+    const list = await screen.findByRole("region", { name: "Blocked column" });
+    const fetcher = vi.mocked(fetch);
+    const saved = JSON.parse(fetcher.mock.calls.at(-1)![1]!.body as string).actions[0];
+    expect(saved).toMatchObject({ type: "create-list", name: "Blocked", color: expect.stringMatching(/^#[0-9a-f]{6}$/) });
+    expect(saved.color).not.toBe("#f07a8a");
+    expect(list.querySelector<HTMLElement>(".status-dot")!.style.background).not.toBe("");
   });
   it("types a space while editing a card instead of picking the card up", async () => {
     const user = userEvent.setup();

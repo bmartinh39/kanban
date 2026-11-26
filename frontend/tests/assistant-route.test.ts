@@ -92,7 +92,8 @@ describe("assistant route", () => {
     expect(options.headers.Authorization).toBe("Bearer test-secret");
     const sent = JSON.parse(options.body);
     expect(sent).toMatchObject({ model: "configured-model", store: false, text: { format: { strict: true } } });
-    expect(sent.input[0].content).toContain(JSON.stringify(initialBoard));
+    // List colors are display-only and never sent to the model (issue #51).
+    expect(sent.input[0].content).toContain(JSON.stringify(initialBoard.map(({ id, name, cards }) => ({ id, name, cards }))));
     expect(sent.input.at(-1)).toEqual(payload.messages[0]);
   });
   it("explains missing configuration without calling the provider", async () => {

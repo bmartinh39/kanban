@@ -4,7 +4,7 @@ import { expect, test } from "./fixtures";
 
 for (const populated of [false, true]) {
   test(`${populated ? "populated" : "empty"} lists show an animated confirmation before deletion`, async ({ page, boardState }, info) => {
-    boardState.columns = [{ id: "target", name: "Release planning", cards: populated ? [{ id: "task", title: "Retain until confirmed", details: "Context" }] : [] }];
+    boardState.columns = [{ id: "target", name: "Release planning", color: "#79bdf0", cards: populated ? [{ id: "task", title: "Retain until confirmed", details: "Context" }] : [] }];
     const before = structuredClone(boardState);
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));

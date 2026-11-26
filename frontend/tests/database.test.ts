@@ -22,7 +22,7 @@ describe("SQLite persistence", () => {
     repo.mutate(1, saved.columns.map(column => ({ type: "delete-list", columnId: column.id })));
     db.close(); db = openDatabase(join(folder, "board.sqlite"), true);
     expect(boardRepository(db).read()).toEqual({ revision: 2, columns: [] });
-    expect(boardRepository(db).mutate(2, [{ type: "create-list", listId: "fresh", name: "Fresh" }]).columns).toEqual([{ id: "fresh", name: "Fresh", cards: [] }]);
+    expect(boardRepository(db).mutate(2, [{ type: "create-list", listId: "fresh", name: "Fresh", color: "#6fd6a8" }]).columns).toEqual([{ id: "fresh", name: "Fresh", color: "#6fd6a8", cards: [] }]);
   });
   it("can move a card out before deleting its old list in the same batch", () => {
     const saved = boardRepository(db).mutate(0, [{ type: "move", cardId: "c1", columnId: "planned" }, { type: "delete-list", columnId: "ideas" }]);
@@ -37,8 +37,8 @@ describe("SQLite persistence", () => {
   });
   it("keeps new lists, order, names and cards after reopening without reseeding", () => {
     const saved = boardRepository(db).mutate(0, [
-      { type: "create-list", listId: "sixth", name: "  Released  " },
-      { type: "create-list", listId: "seventh", name: "Empty" },
+      { type: "create-list", listId: "sixth", name: "  Released  ", color: "#6fd6a8" },
+      { type: "create-list", listId: "seventh", name: "Empty", color: "#ecad0a" },
       { type: "rename", columnId: "sixth", name: "Shipped" },
       { type: "move", cardId: "c1", columnId: "sixth" },
       { type: "add", columnId: "sixth", card: { id: "new", title: "New", details: "Context" } },
@@ -46,22 +46,22 @@ describe("SQLite persistence", () => {
     db.close(); db = openDatabase(join(folder, "board.sqlite"), true);
     expect(boardRepository(db).read()).toEqual(saved);
     expect(saved.columns.slice(5)).toEqual([
-      { id: "sixth", name: "Shipped", cards: [initialBoard[0].cards[0], { id: "new", title: "New", details: "Context" }] },
-      { id: "seventh", name: "Empty", cards: [] },
+      { id: "sixth", name: "Shipped", color: "#6fd6a8", cards: [initialBoard[0].cards[0], { id: "new", title: "New", details: "Context" }] },
+      { id: "seventh", name: "Empty", color: "#ecad0a", cards: [] },
     ]);
   });
   it("rejects duplicate list IDs and invalid later actions without partial list creation", () => {
     const repo = boardRepository(db);
     for (const later of [
-      { type: "create-list", listId: "new", name: "Duplicate" },
+      { type: "create-list", listId: "new", name: "Duplicate", color: "#6fd6a8" },
       { type: "move", cardId: "missing", columnId: "new" },
-    ]) expect(() => repo.mutate(0, [{ type: "create-list", listId: "new", name: "New" }, later])).toThrow();
+    ]) expect(() => repo.mutate(0, [{ type: "create-list", listId: "new", name: "New", color: "#6fd6a8" }, later])).toThrow();
     expect(repo.read()).toEqual({ columns: initialBoard, revision: 0 });
   });
   it("rolls back list insertion if a later SQL write fails", () => {
     db.exec("CREATE TRIGGER fail_update BEFORE UPDATE ON cards BEGIN SELECT RAISE(ABORT, 'test storage failure'); END;");
     expect(() => boardRepository(db).mutate(0, [
-      { type: "create-list", listId: "new", name: "New" },
+      { type: "create-list", listId: "new", name: "New", color: "#6fd6a8" },
       { type: "move", cardId: "c1", columnId: "new" },
     ])).toThrow("test storage failure");
     expect(boardRepository(db).read()).toEqual({ columns: initialBoard, revision: 0 });
@@ -71,12 +71,12 @@ describe("SQLite persistence", () => {
     expect(db.pragma("journal_mode", { simple: true })).toBe("wal");
     expect(db.pragma("foreign_keys", { simple: true })).toBe(1);
     expect(db.pragma("synchronous", { simple: true })).toBe(2);
-    expect(db.pragma("user_version", { simple: true })).toBe(3);
+    expect(db.pragma("user_version", { simple: true })).toBe(4);
     expect(db.pragma("busy_timeout", { simple: true })).toBe(5000);
   });
   it("upgrades a saved board to support optional priorities without changing its revision or cards", () => {
     const existing = boardRepository(db).mutate(0, [{ type: "edit", cardId: "c1", title: "Existing card" }]);
-    db.exec("ALTER TABLE cards DROP COLUMN priority; PRAGMA user_version = 1;");
+    db.exec("ALTER TABLE cards DROP COLUMN priority; ALTER TABLE columns DROP COLUMN color; PRAGMA user_version = 1;");
     db.close(); db = openDatabase(join(folder, "board.sqlite"), true);
     const repo = boardRepository(db);
     expect(repo.read()).toEqual(existing);
@@ -92,7 +92,7 @@ describe("SQLite persistence", () => {
   });
   it("maps retired priorities to the four levels and bumps the revision only when a card changed (issue #44)", () => {
     const reopenAtVersion2 = (priorities: Record<string, string>) => {
-      db.exec("DROP TABLE cards; CREATE TABLE cards (id TEXT PRIMARY KEY NOT NULL, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL, priority TEXT CHECK (priority IN ('low', 'normal', 'medium', 'high', 'urgent', 'critical'))); PRAGMA user_version = 2;");
+      db.exec("DROP TABLE cards; CREATE TABLE cards (id TEXT PRIMARY KEY NOT NULL, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL, priority TEXT CHECK (priority IN ('low', 'normal', 'medium', 'high', 'urgent', 'critical'))); ALTER TABLE columns DROP COLUMN color; PRAGMA user_version = 2;");
       const insert = db.prepare("INSERT INTO cards (id, column_id, title, details, position, priority) VALUES (?, 'ideas', ?, '', ?, ?)");
       Object.entries(priorities).forEach(([id, priority], position) => insert.run(id, id, position, priority));
       db.close(); db = openDatabase(join(folder, "board.sqlite"), true);
@@ -106,6 +106,21 @@ describe("SQLite persistence", () => {
     expect(migrated.columns[0].cards.map(card => card.priority)).toEqual(["low", "medium", "medium", "high", "urgent", "urgent", undefined]);
     expect(() => db.prepare("UPDATE cards SET priority = 'critical' WHERE id = 'a'").run()).toThrow("CHECK");
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'cards' AND sql IS NOT NULL").all()).toEqual([{ name: "cards_column_position" }]);
+  });
+  it("gives existing lists the color their position showed, without changing the revision (issue #51)", () => {
+    const repo = boardRepository(db);
+    const before = repo.mutate(0, [
+      { type: "create-list", listId: "sixth", name: "Sixth", color: "#6fd6a8" },
+      { type: "delete-list", columnId: "planned" },
+    ]);
+    db.exec("ALTER TABLE columns DROP COLUMN color; PRAGMA user_version = 3;");
+    db.close(); db = openDatabase(join(folder, "board.sqlite"), true);
+    const migrated = boardRepository(db).read();
+    expect(migrated.revision).toBe(before.revision);
+    expect(migrated.columns.map(column => [column.id, column.color])).toEqual([
+      ["ideas", "#b0b9c8"], ["progress", "#79bdf0"], ["review", "#8f98f6"], ["done", "#c08cf0"], ["sixth", "#5ccfe6"],
+    ]);
+    expect(() => db.prepare("UPDATE columns SET color = 'red' WHERE id = 'ideas'").run()).toThrow("CHECK");
   });
   it("persists rename, creation, edits, ordering, cross-column insertion, and deletion on reopen", () => {
     const repo = boardRepository(db);
@@ -170,7 +185,7 @@ describe("SQLite persistence", () => {
   });
   it("refuses unmigrated and future schemas without damaging data", () => {
     expect(() => openDatabase(join(folder, "fresh.sqlite"))).toThrow("not initialized");
-    db.pragma("user_version = 4");
+    db.pragma("user_version = 5");
     expect(() => openDatabase(join(folder, "board.sqlite"), true)).toThrow("newer");
     expect(db.prepare("SELECT count(*) AS count FROM cards").get()).toEqual({ count: 12 });
   });

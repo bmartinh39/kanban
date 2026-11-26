@@ -1,5 +1,6 @@
 import { boardReducer, cardPriorities, type BoardCommand, type Column } from "./board-state";
 import { batchLimit, fieldCharacterLimit, idCharacterLimit } from "./limits";
+import { isListColor } from "./list-colors";
 
 export type BoardSnapshot = { columns: Column[]; revision: number };
 
@@ -21,7 +22,7 @@ export function parseCommands(value: unknown): BoardCommand[] {
 
 function validCommand(action: Record<string, unknown>) {
   switch (action.type) {
-    case "create-list": return id(action.listId) && text(action.name);
+    case "create-list": return id(action.listId) && text(action.name) && isListColor(action.color);
     case "delete-list": return id(action.columnId);
     case "rename": return id(action.columnId) && text(action.name);
     case "delete": return id(action.cardId);
