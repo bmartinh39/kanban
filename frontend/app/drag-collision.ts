@@ -13,6 +13,15 @@ export function boardCollisionDetection(
     if ([viewport, frame].some(rect => rect && (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom))) return [];
   }
 
+  // A dragged list targets the list under the pointer, or under its own header when moved by keyboard.
+  if (active.data.current?.type === "list") {
+    return pointerWithin({
+      ...args,
+      pointerCoordinates: pointerCoordinates ?? { x: collisionRect.left + collisionRect.width / 2, y: collisionRect.top + 20 },
+      droppableContainers: droppableContainers.filter(({ data }) => data.current?.type === "column"),
+    });
+  }
+
   const point = pointerCoordinates ?? {
     x: collisionRect.left + collisionRect.width / 2,
     y: collisionRect.top + collisionRect.height / 2,

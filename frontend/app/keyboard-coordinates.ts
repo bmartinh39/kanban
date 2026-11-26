@@ -12,6 +12,24 @@ export const columnCoordinates: KeyboardCoordinateGetter = (event, { active, con
   if (!collisionRect || !current?.data.current) return currentCoordinates;
 
   const direction = code === KeyboardCode.Right || code === KeyboardCode.Down ? 1 : -1;
+  if (context.active?.data.current?.type === "list") {
+    const lists = context.droppableContainers.getEnabled().filter(({ data }) => data.current?.type === "column");
+    const source = lists.find(list => list.id === (context.over ?? { id: context.active!.data.current!.listId }).id);
+    const sourceRect = source && droppableRects.get(source.id);
+    if (!sourceRect) return currentCoordinates;
+    // Left/Right step through the board order; Up/Down stay in the lane (issue #53).
+    const target = horizontal
+      ? lists.find(list => list.data.current?.index === source!.data.current?.index + direction)
+      : lists.map(list => ({ list, rect: droppableRects.get(list.id)! }))
+        .filter(({ rect }) => rect && Math.abs(rect.left - sourceRect.left) < 2 && (rect.top - sourceRect.top) * direction > 0)
+        .toSorted((first, second) => (first.rect.top - second.rect.top) * direction)[0]?.list;
+    const targetRect = target && droppableRects.get(target.id);
+    if (!targetRect) return currentCoordinates;
+    return {
+      x: currentCoordinates.x + targetRect.left - collisionRect.left,
+      y: currentCoordinates.y + targetRect.top - collisionRect.top,
+    };
+  }
   let targetId: UniqueIdentifier | undefined;
   let targetIsColumn = false;
   const enabled = context.droppableContainers.getEnabled();

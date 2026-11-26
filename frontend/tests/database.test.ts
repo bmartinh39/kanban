@@ -42,9 +42,11 @@ describe("SQLite persistence", () => {
       { type: "rename", columnId: "sixth", name: "Shipped" },
       { type: "move", cardId: "c1", columnId: "sixth" },
       { type: "add", columnId: "sixth", card: { id: "new", title: "New", details: "Context" } },
+      { type: "move-list", columnId: "done", index: 0 },
     ]);
     db.close(); db = openDatabase(join(folder, "board.sqlite"), true);
     expect(boardRepository(db).read()).toEqual(saved);
+    expect(saved.columns.map(column => column.id)).toEqual(["done", "ideas", "planned", "progress", "review", "sixth", "seventh"]);
     expect(saved.columns.slice(5)).toEqual([
       { id: "sixth", name: "Shipped", color: "#6fd6a8", cards: [initialBoard[0].cards[0], { id: "new", title: "New", details: "Context" }] },
       { id: "seventh", name: "Empty", color: "#ecad0a", cards: [] },

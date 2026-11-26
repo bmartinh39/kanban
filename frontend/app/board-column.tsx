@@ -1,12 +1,12 @@
-import { useRef, useState } from "react";
-import { useDndContext, useDroppable } from "@dnd-kit/core";
+import { useRef, useState, type MouseEvent, type TouchEvent } from "react";
+import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Check, Columns3, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { Card, CardPriority, Column } from "./board-state";
 import { getCardMove } from "./drag-announcements";
 import type { CardChanges } from "./editable-card-content";
 import { fieldCharacterLimit } from "./limits";
-import { TaskCard } from "./task-card";
+import { CardDragPreview, TaskCard } from "./task-card";
 
 const cardGap = 11; // Matches the .card-stack gap in globals.css.
 
@@ -30,8 +30,8 @@ type BoardColumnProps = {
 function useInsertionPreview(column: Column, index: number) {
   const { setNodeRef } = useDroppable({ id: column.id, data: { type: "column", columnId: column.id, index } });
   const { active, activeNodeRect, over, droppableRects } = useDndContext();
-  const isOver = over?.data.current?.columnId === column.id;
-  const inserting = isOver && !!active && active.data.current?.columnId !== column.id;
+  const isOver = active?.data.current?.type === "card" && over?.data.current?.columnId === column.id;
+  const inserting = isOver && active!.data.current?.columnId !== column.id;
   if (!inserting) return { setNodeRef, isOver, inserting, insertionIndex: -1, gapHeight: 0, insertionTop: 0 };
 
   const insertionIndex = getCardMove({ active, over })?.index ?? column.cards.length;
@@ -46,6 +46,21 @@ function useInsertionPreview(column: Column, index: number) {
 export function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList, onRename, onEdit, onPriority }: BoardColumnProps) {
   const { setNodeRef, isOver, inserting, insertionIndex, gapHeight, insertionTop } = useInsertionPreview(column, index);
   const [renaming, setRenaming] = useState(false);
+  // The header's free space drags the list (issue #53); its buttons and rename field keep their own behavior.
+  const { attributes, listeners, setNodeRef: setDragRef, setActivatorNodeRef, isDragging } = useDraggable({
+    id: `list:${column.id}`,
+    disabled: busy || renaming,
+    data: { type: "list", listId: column.id, index },
+    attributes: { role: "group", roleDescription: "draggable list" },
+  });
+  const { active, over } = useDndContext();
+  const dropTarget = active?.data.current?.type === "list" && !isDragging && over?.id === column.id;
+  const controls = "button, input, form, .rename-error";
+  const dragListeners = listeners && {
+    ...listeners,
+    onMouseDown: (event: MouseEvent) => { if (!(event.target as Element).closest(controls)) listeners.onMouseDown(event); },
+    onTouchStart: (event: TouchEvent) => { if (!(event.target as Element).closest(controls)) listeners.onTouchStart(event); },
+  };
   const [name, setName] = useState(column.name);
   const [renameSaving, setRenameSaving] = useState(false);
   const [renameError, setRenameError] = useState("");
@@ -99,13 +114,22 @@ export function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList
   </>;
 
   return <section
-    className={`column${isOver ? " is-over" : ""}`}
+    className={`column${isOver ? " is-over" : ""}${isDragging ? " is-list-dragging" : ""}${dropTarget ? " list-drop-target" : ""}`}
     aria-label={`${column.name} column`}
     data-list={column.id}
-    ref={setNodeRef}
+    ref={node => { setNodeRef(node); setDragRef(node); }}
     style={{ viewTransitionName: `list-${column.id}` }}
   >
-    <header className="column-header">
+    <header
+      className={`column-header${busy ? " is-locked" : ""}`}
+      ref={setActivatorNodeRef}
+      {...attributes}
+      // A disabled group would also disable the rename field and buttons inside it.
+      aria-disabled={undefined}
+      aria-pressed={undefined}
+      {...dragListeners}
+      aria-label={column.name}
+    >
       <span className="status-dot" style={{ background: column.color }} />
       {renaming ? renameForm : title}
       {renameError && <p role="alert" id={renameErrorId} className="form-error rename-error">{renameError}</p>}
@@ -142,4 +166,16 @@ export function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList
       <Plus size={16} /> Add a card
     </button>
   </section>;
+}
+
+/** The static copy of a list that follows the pointer while it is dragged. */
+export function ListDragPreview({ column }: { column: Column }) {
+  return <div className="column list-drag-preview drag-preview" aria-hidden="true">
+    <div className="column-header">
+      <span className="status-dot" style={{ background: column.color }} />
+      <h2>{column.name}</h2>
+      <span className="column-count">{column.cards.length}</span>
+    </div>
+    <div className="card-stack">{column.cards.map(card => <CardDragPreview key={card.id} card={card} />)}</div>
+  </div>;
 }

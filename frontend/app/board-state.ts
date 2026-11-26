@@ -7,6 +7,8 @@ export type Column = { id: string; name: string; color: string; cards: Card[] };
 export type BoardCommand =
   | { type: "create-list"; listId: string; name: string; color: string }
   | { type: "delete-list"; columnId: string }
+  /** Moves a list to `index` in the board order; lanes are dealt from that order (issue #53). */
+  | { type: "move-list"; columnId: string; index: number }
   | { type: "add"; columnId: string; card: Card }
   | { type: "delete"; cardId: string }
   | { type: "edit"; cardId: string; title?: string; details?: string }
@@ -45,6 +47,11 @@ export function boardReducer(board: Column[], action: BoardCommand): Column[] {
       return action.name.trim() ? [...board, { id: action.listId, name: action.name.trim(), color: action.color, cards: [] }] : board;
     case "delete-list":
       return board.filter(column => column.id !== action.columnId);
+    case "move-list": {
+      const list = board.find(column => column.id === action.columnId)!;
+      const rest = board.filter(column => column !== list);
+      return board.indexOf(list) === action.index ? board : [...rest.slice(0, action.index), list, ...rest.slice(action.index)];
+    }
     case "add":
       if (!action.card.title.trim()) return board;
       return board.map(column => column.id === action.columnId

@@ -6,21 +6,22 @@ import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useS
 import { Bot, Columns3, LayoutGrid, Plus } from "lucide-react";
 import { columnCoordinates } from "./keyboard-coordinates";
 import { boardCollisionDetection } from "./drag-collision";
-import { createDragAnnouncements, getCardMove } from "./drag-announcements";
+import { createDragAnnouncements, getCardMove, getListMove } from "./drag-announcements";
 import { boardReducer, type BoardCommand, type Card, type Column } from "./board-state";
 import { useBoard } from "./use-board";
 import { AssistantChat } from "./assistant-chat";
 import { DeleteCardDialog, DeleteListDialog } from "./delete-list-dialog";
 import { prepareActions, type AssistantPlan } from "./assistant-commands";
 import { AddItemDialog } from "./add-item-dialog";
-import { BoardColumn } from "./board-column";
+import { BoardColumn, ListDragPreview } from "./board-column";
 import { boardLanes, useLaneCount } from "./board-lanes";
 import { nextListColor } from "./list-colors";
 import { CardDragPreview } from "./task-card";
 
 const emptyBoard: Column[] = [];
-const dragInstructions = "Press Space to pick up a card. Use Up and Down to reorder it within its column. " +
-  "Use Left and Right to move it to another column. Press Space to drop, or Escape to cancel.";
+const dragInstructions = "Press Space to pick up a card or list. Use Up and Down to reorder a card within its column, " +
+  "and Left and Right to move it to another column. A list moves to the previous or next position with Left and Right, " +
+  "and up or down its lane with Up and Down. Press Space to drop, or Escape to cancel.";
 
 /** Whether a board read back after a failed save already contains the command's result. */
 function committed(board: Column[], action: BoardCommand) {
@@ -77,6 +78,7 @@ export default function Home() {
   const [laneCount, laneGrid] = useLaneCount();
   // Follow-ups that wait for a save to settle: focus or scroll the right element afterwards.
   const keyboardDrop = useRef<string | null>(null);
+  const keyboardListDrop = useRef<string | null>(null);
   const createdList = useRef<string | null>(null);
   const deletedList = useRef(false);
   const deletedCardColumn = useRef<string | null>(null);
@@ -117,6 +119,12 @@ export default function Home() {
     listElement(createdList.current)?.querySelector(".column-header")?.scrollIntoView({ block: "nearest", inline: "nearest" });
     createdList.current = null;
   }, [savedBoard, storage.saving]);
+  useLayoutEffect(() => {
+    // Lanes are re-dealt on drop, so the moved list remounts and its header needs focus again.
+    if (storage.saving || !keyboardListDrop.current) return;
+    listElement(keyboardListDrop.current)?.querySelector<HTMLElement>(".column-header")?.focus();
+    keyboardListDrop.current = null;
+  }, [board, storage.saving]);
   useLayoutEffect(() => {
     if (storage.saving || !keyboardDrop.current) return;
     const cardId = keyboardDrop.current;
@@ -177,10 +185,13 @@ export default function Home() {
     }
   }
   async function handleDragEnd(event: DragEndEvent) {
-    const move = getCardMove(event);
+    const move = getCardMove(event) ?? getListMove(event);
     setActiveId(null);
-    if (!move) return;
-    if (event.activatorEvent instanceof KeyboardEvent) keyboardDrop.current = move.cardId;
+    if (!move || (move.type === "move-list" && move.index === event.active.data.current?.index)) return;
+    if (event.activatorEvent instanceof KeyboardEvent) {
+      if (move.type === "move") keyboardDrop.current = move.cardId;
+      else keyboardListDrop.current = move.columnId;
+    }
     // Commit the visual position before the overlay measures its landing target.
     // Keep the saved snapshot/revision untouched until the server confirms the move.
     setDropPreview(boardReducer(board, move));
@@ -195,6 +206,7 @@ export default function Home() {
     useSensor(KeyboardSensor, { coordinateGetter: columnCoordinates, scrollBehavior: "auto" }),
   );
   const activeCard = board.flatMap(column => column.cards).find(card => card.id === activeId);
+  const activeList = board.find(column => `list:${column.id}` === activeId);
   const addingColumn = board.find(column => column.id === addingTo);
   const saveStatus = storage.saving ? "Saving..." : !storage.available ? "Disconnected" : storage.error ? "Save error" : "Saved";
 
@@ -263,7 +275,7 @@ export default function Home() {
           </div>)}</div>
           {!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}
         </div>
-        <DragOverlay>{activeCard && <CardDragPreview card={activeCard} />}</DragOverlay>
+        <DragOverlay>{activeCard ? <CardDragPreview card={activeCard} /> : activeList && <ListDragPreview column={activeList} />}</DragOverlay>
       </DndContext>
       <AssistantChat
         drawerOpen={assistantOpen}

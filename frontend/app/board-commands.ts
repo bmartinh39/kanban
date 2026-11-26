@@ -24,6 +24,7 @@ function validCommand(action: Record<string, unknown>) {
   switch (action.type) {
     case "create-list": return id(action.listId) && text(action.name) && isListColor(action.color);
     case "delete-list": return id(action.columnId);
+    case "move-list": return id(action.columnId) && Number.isSafeInteger(action.index) && (action.index as number) >= 0;
     case "rename": return id(action.columnId) && text(action.name);
     case "delete": return id(action.cardId);
     case "set-priority": return id(action.cardId) && (action.priority === null || validPriority(action.priority));
@@ -50,6 +51,7 @@ export function applyCommands(board: Column[], actions: BoardCommand[]): Column[
     if (action.type === "add" && current.some(column => column.id === action.card.id || column.cards.some(card => card.id === action.card.id))) throw new InvalidCommand("This card ID is already in use.");
     if ((action.type === "add" && !action.card.title.trim()) || (action.type === "edit" && action.title !== undefined && !action.title.trim()) ||
       ((action.type === "rename" || action.type === "create-list") && !action.name.trim())) throw new InvalidCommand("Titles and column names cannot be blank.");
+    if (action.type === "move-list" && action.index >= current.length) throw new InvalidCommand("Invalid list position.");
     if (action.type === "move" && action.index !== undefined) {
       const destination = current.find(column => column.id === action.columnId)!;
       const max = destination.cards.length - (destination.cards.some(card => card.id === action.cardId) ? 1 : 0);

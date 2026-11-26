@@ -9,6 +9,14 @@ describe("board state", () => {
     expect(boardReducer([initialBoard[0]], { type: "delete-list", columnId: "ideas" })).toEqual([]);
     expect(initialBoard).toHaveLength(5);
   });
+  it("moves a list to a new place in the board order, keeping its cards (issue #53)", () => {
+    const order = (board: typeof initialBoard) => board.map(column => column.id);
+    const forward = boardReducer(initialBoard, { type: "move-list", columnId: "ideas", index: 3 });
+    expect(order(forward)).toEqual(["planned", "progress", "review", "ideas", "done"]);
+    expect(forward[3]).toBe(initialBoard[0]);
+    expect(order(boardReducer(initialBoard, { type: "move-list", columnId: "done", index: 0 }))).toEqual(["done", "ideas", "planned", "progress", "review"]);
+    expect(boardReducer(initialBoard, { type: "move-list", columnId: "planned", index: 1 })).toBe(initialBoard);
+  });
   it("creates empty trimmed lists and supports renaming, adding and moving cards through them", () => {
     let board = boardReducer(initialBoard, { type: "create-list", listId: "new-list", name: "  Released  ", color: "#6fd6a8" });
     expect(board).toHaveLength(6);

@@ -42,3 +42,13 @@ it("reports the saved position when leaving the board, dropping outside, or canc
     `Cancelled moving ${title}. It remains in Ideas, position 2 of 3.`,
   );
 });
+
+it("announces list moves by board position (issue #53)", () => {
+  const announcements = createDragAnnouncements(board);
+  const list = { id: "list:progress", data: { current: { type: "list", listId: "progress", index: 2 } }, rect: { current: { initial: null, translated: null } } };
+  expect(announcements.onDragStart({ active: list })).toBe("Picked up list In progress at position 3 of 5.");
+  expect(announcements.onDragOver({ active: list, over: null })).toBe("No drop target. List In progress remains at position 3 of 5.");
+  expect(announcements.onDragOver({ active: list, over: target("planned") })).toBe("Moving list In progress to position 2 of 5.");
+  expect(announcements.onDragEnd({ active: list, over: target("ideas") })).toBe("Dropped list In progress at position 1 of 5.");
+  expect(announcements.onDragCancel({ active: list, over: target("ideas") })).toBe("Cancelled moving list In progress. It remains at position 3 of 5.");
+});

@@ -85,3 +85,19 @@ it("excludes board content clipped by the mobile frame above the assistant", () 
 it("allows a keyboard drag to target a column beyond the scroll viewport", () => {
   expect(targetAt(365, 114, false, boardViewport)).toBe("planned");
 });
+
+it("targets only lists for a dragged list, by pointer or by its header when moved by keyboard (issue #53)", () => {
+  const list = { id: "list:done", data: { current: { type: "list", listId: "done", index: 2 } }, rect: { current: { initial: rectangles.get("done")!, translated: null } } };
+  const listTarget = (x: number, y: number, pointer: boolean) => boardCollisionDetection({
+    active: list,
+    collisionRect: rect(x - 115, y - 20, 230, 540),
+    droppableContainers: containers,
+    droppableRects: rectangles,
+    pointerCoordinates: pointer ? { x, y } : null,
+  }).map(collision => collision.id);
+  // Over a card in Ideas, the list (not the card) is the target.
+  expect(listTarget(115, 100, true)).toEqual(["ideas"]);
+  expect(listTarget(365, 20, false)).toEqual(["planned"]);
+  // The gap between lists is not a target.
+  expect(listTarget(240, 100, true)).toEqual([]);
+});

@@ -73,6 +73,8 @@ describe("board HTTP API", () => {
     { revision: 0, actions: Array(21).fill({ type: "delete", cardId: "c1" }) },
     ...[
       { type: "delete-list", columnId: "" }, { type: "delete-list", columnId: "missing" }, { type: "delete-list", columnId: 4 },
+      { type: "move-list", columnId: "ideas", index: 5 }, { type: "move-list", columnId: "ideas", index: -1 },
+      { type: "move-list", columnId: "ideas", index: 1.5 }, { type: "move-list", columnId: "ideas" }, { type: "move-list", columnId: "missing", index: 0 },
       { type: "create-list", listId: "", name: "List", color: "#6fd6a8" }, { type: "create-list", listId: "x", color: "#6fd6a8" },
       { type: "create-list", listId: "x", name: 42, color: "#6fd6a8" }, { type: "create-list", listId: "x", name: " \t ", color: "#6fd6a8" },
       { type: "create-list", listId: "ideas", name: "Duplicate ID", color: "#6fd6a8" }, { type: "create-list", listId: "c1", name: "Card ID", color: "#6fd6a8" },

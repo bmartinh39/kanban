@@ -250,3 +250,84 @@ test("creates a list with a color picked on the wheel and keeps it after reload 
   await expect(list(page, "Blocked").locator(".status-dot")).toHaveCSS("background-color", preview);
   await expect(list(page, "Planned").locator(".status-dot")).toHaveCSS("background-color", "rgb(121, 189, 240)");
 });
+
+// List dragging (issue #53): the header's free space, right of the card count, grabs the list.
+async function headerGrab(page: Page, name: string) {
+  const count = (await list(page, name).locator(".column-count").boundingBox())!;
+  return { x: count.x + count.width + 12, y: count.y + count.height / 2 };
+}
+const listOrder = (boardState: { columns: { id: string }[] }) => boardState.columns.map(column => column.id);
+
+test("drags a list by its header into another lane's slot, marking the target before the drop (issue #53)", async ({ page, boardState }, info) => {
+  test.skip(page.viewportSize()!.width <= 700, "Narrow screens use touch; see the mobile case");
+  // Header buttons keep their own behavior: pressing one and moving does not pick up the list.
+  const rename = list(page, "Ideas").getByRole("button", { name: "Rename Ideas", exact: true });
+  const renameBox = (await rename.boundingBox())!;
+  await page.mouse.move(renameBox.x + 5, renameBox.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(renameBox.x + 40, renameBox.y + 40, { steps: 4 });
+  await expect(page.locator(".list-drag-preview")).toHaveCount(0);
+  await page.mouse.up();
+
+  const from = await headerGrab(page, "Done");
+  await page.mouse.move(from.x, from.y);
+  await expect(list(page, "Done").locator(".column-header")).toHaveCSS("cursor", "grab");
+  await page.mouse.down();
+  await page.mouse.move(from.x + 10, from.y, { steps: 3 });
+  await expect(list(page, "Done")).toHaveClass(/is-list-dragging/);
+  await expect(page.locator(".list-drag-preview")).toBeVisible();
+  const target = (await list(page, "Ideas").locator(".column-header").boundingBox())!;
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 10 });
+  await expect(list(page, "Ideas")).toHaveClass(/list-drop-target/);
+  // Lists stay in place while aiming; only the bar marks the slot.
+  await expect(page.locator(".list-drop-target")).toHaveCount(1);
+  await expect(list(page, "Ideas")).not.toHaveClass(/is-over/);
+  await page.screenshot({ path: info.outputPath("list-drag.png") });
+  await page.mouse.up();
+  await expect(page.locator(".drag-preview")).toHaveCount(0);
+  await expect.poll(() => listOrder(boardState)).toEqual(["done", "ideas", "planned", "progress", "review"]);
+  await page.reload();
+  await expect(list(page, "Done")).toBeVisible();
+  const [done, ideas] = await Promise.all([list(page, "Done").boundingBox(), list(page, "Ideas").boundingBox()]);
+  // Re-dealt from the new order: Done leads the first lane and Ideas leads the second.
+  expect(done!.x).toBeLessThan(ideas!.x);
+  expect(done!.y).toBeCloseTo(ideas!.y, 0);
+});
+
+test("moves a list by keyboard along the order and within its lane (issue #53)", async ({ page, boardState }) => {
+  test.skip(page.viewportSize()!.width <= 700, "Lane movement needs several lanes");
+  const header = page.getByRole("group", { name: "Ideas", exact: true });
+  const live = page.getByRole("status").and(page.locator("[aria-live=assertive]"));
+  await header.focus();
+  await page.keyboard.press("Space");
+  await expect(list(page, "Ideas")).toHaveClass(/is-list-dragging/);
+  await expect(live).toHaveText("Picked up list Ideas at position 1 of 5.");
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve)));
+  await page.keyboard.press("ArrowDown");
+  await expect(list(page, "In review")).toHaveClass(/list-drop-target/);
+  await expect(live).toHaveText("Moving list Ideas to position 4 of 5.");
+  await page.keyboard.press("ArrowRight");
+  await expect(list(page, "Done")).toHaveClass(/list-drop-target/);
+  await page.keyboard.press("ArrowLeft");
+  await expect(list(page, "In review")).toHaveClass(/list-drop-target/);
+  await page.keyboard.press("Space");
+  await expect.poll(() => listOrder(boardState)).toEqual(["planned", "progress", "review", "ideas", "done"]);
+  await expect(header).toBeFocused();
+});
+
+test("long-pressing a list header moves the list on touch screens (issue #53)", async ({ page, boardState }, info) => {
+  test.skip(info.project.name !== "mobile", "Uses Chromium touch input");
+  // Tall enough that the next list's header is on screen, as in the card touch test.
+  await page.setViewportSize({ width: 390, height: 900 });
+  const sensor = await page.context().newCDPSession(page);
+  const from = await headerGrab(page, "Ideas");
+  await sensor.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [from] });
+  await expect(list(page, "Ideas")).toHaveClass(/is-list-dragging/);
+  const target = (await list(page, "Planned").locator(".column-header").boundingBox())!;
+  for (const step of [0.25, 0.5, 0.75, 1]) {
+    await sensor.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from.x, y: from.y + (target.y + target.height / 2 - from.y) * step }] });
+  }
+  await expect(list(page, "Planned")).toHaveClass(/list-drop-target/);
+  await sensor.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await expect.poll(() => listOrder(boardState)).toEqual(["planned", "ideas", "progress", "review", "done"]);
+});
