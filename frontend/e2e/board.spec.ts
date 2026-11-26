@@ -1,4 +1,6 @@
 import { type Locator, type Page } from "@playwright/test";
+import type { BoardSnapshot } from "../app/board-commands";
+import type { Card } from "../app/board-state";
 import { expect, test, expectKeyboardDropTarget, grabPoint } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
@@ -297,42 +299,61 @@ test("touch swipes scroll the board and holding a card moves it", async ({ page 
   await expectCardOrder(page.getByRole("region", { name: "Ideas column", exact: true }), ["c2", "c1", "c3"]);
 });
 
-test("appends by pointer in populated and empty columns and reorders after a second arrival", async ({ page }) => {
+// Three short scenarios rather than one long one, which ran close to the test timeout (issue #55).
+// Lists are prepared through the controlled board instead of deleting cards in the UI.
+async function showDone(page: Page, boardState: BoardSnapshot, cards: Card[]) {
+  boardState.columns = boardState.columns.map(column => column.id === "done" ? { ...column, cards } : column);
+  await page.setViewportSize({ width: 1900, height: 1000 });
+  await page.reload();
+  const done = page.getByRole("region", { name: "Done column", exact: true });
+  await expectCardOrder(done, cards.map(card => card.id));
+  return done;
+}
+const takeCard = (boardState: BoardSnapshot, id: string) => {
+  const card = boardState.columns.flatMap(column => column.cards).find(card => card.id === id)!;
+  boardState.columns = boardState.columns.map(column => ({ ...column, cards: column.cards.filter(other => other.id !== id) }));
+  return card;
+};
+
+test("appends by pointer to the end of a populated column", async ({ page }) => {
   await page.setViewportSize({ width: 1900, height: 1000 });
   const planned = page.getByRole("region", { name: "Planned column", exact: true });
-  const done = page.getByRole("region", { name: "Done column", exact: true });
   await pointerMove(page, "c1", "Planned");
   await expectCardOrder(planned, ["c4", "c5", "c1"]);
-  for (const card of ["c11", "c12"]) {
-    await page.getByTestId(`card-${card}`).getByRole("button", { name: /^Delete / }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete card", exact: true }).click();
-  }
-  await expectCardOrder(done, []);
+});
+
+test("appends by pointer into an empty column and keeps a lone card in place by keyboard", async ({ page, boardState }) => {
+  const done = await showDone(page, boardState, []);
   await pointerMove(page, "c1", "Done");
   await expectCardOrder(done, ["c1"]);
-  const onlyHandle = done.getByRole("article");
-  await onlyHandle.press("Space");
-  await expect(onlyHandle).toHaveClass(/is-dragging/);
+  const onlyCard = done.getByRole("article");
+  await onlyCard.press("Space");
+  await expect(onlyCard).toHaveClass(/is-dragging/);
   await expect(done).toHaveClass(/is-over/);
+  await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowUp");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Space");
   await expect(page.locator(".drag-preview")).toHaveCount(0);
-  await expect(onlyHandle).toBeFocused();
+  await expect(onlyCard).toBeFocused();
   await expectCardOrder(done, ["c1"]);
+});
 
+test("reorders a second pointer arrival by keyboard", async ({ page, boardState }) => {
+  const done = await showDone(page, boardState, [takeCard(boardState, "c1")]);
   await pointerMove(page, "c2", "Done");
   await expectCardOrder(done, ["c1", "c2"]);
-  const secondHandle = done.getByTestId("card-c2");
-  await secondHandle.press("Space");
-  await expect(secondHandle).toHaveClass(/is-dragging/);
+  const secondCard = done.getByTestId("card-c2");
+  await secondCard.press("Space");
+  await expect(secondCard).toHaveClass(/is-dragging/);
   await expect(done).toHaveClass(/is-over/);
+  await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowUp");
   const liveRegion = page.getByRole("status").and(page.locator("[aria-live=assertive]"));
   await expect(liveRegion).toHaveText("Moving A small moment of delight to Done, position 1 of 2.");
   await page.keyboard.press("Space");
   await expectCardOrder(done, ["c2", "c1"]);
-  await expect(secondHandle).toBeFocused();
+  await expect(secondCard).toBeFocused();
   await expect(page.getByRole("article")).toHaveCount(10);
   await expect(done.getByTestId("card-c1")).toContainText("Explore a quieter layout");
 });
