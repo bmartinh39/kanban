@@ -101,6 +101,7 @@ export function BoardColumn({ column, index, busy, onAdd, onDelete, onDeleteList
   return <section
     className={`column column-${index}${isOver ? " is-over" : ""}`}
     aria-label={`${column.name} column`}
+    data-list={column.id}
     ref={setNodeRef}
     style={{ viewTransitionName: `list-${column.id}` }}
   >
