@@ -1,7 +1,8 @@
 import { expect, it } from "vitest";
 import type { DroppableContainers } from "@dnd-kit/core";
 import { columnCoordinates } from "../app/keyboard-coordinates";
-import { active, containers, rect, rectangles } from "./drag-fixtures";
+import { boardCollisionDetection } from "../app/drag-collision";
+import { active, containers, listActive, listContainers, listRects, rect, rectangles } from "./drag-fixtures";
 
 function press(code: string, overId: string, unmeasured?: string) {
   const container = containers.find(item => item.id === overId)!;
@@ -65,4 +66,41 @@ it("moves between a destination card's insertion slot and the append slot", () =
 
 it.each(["c2", "c3"])("waits until both the dragged and target rectangles are measured (%s)", unmeasured => {
   expect(press("ArrowDown", "c2", unmeasured)).toEqual({ x: 100, y: 200 });
+});
+
+// Lists (issue #53): each step is checked by where collision detection then aims the moved copy.
+function stepList(code: string, overId: string) {
+  const base = rect(0, 0, 230, 540);
+  const active = listActive("ideas");
+  const over = listContainers.find(item => item.id === overId)!;
+  const context = {
+    active, activatorEvent: null, activeNode: null, collisionRect: base,
+    collisions: null, draggableNodes: new Map(), draggingNode: null, draggingNodeRect: null,
+    droppableContainers: { getEnabled: () => listContainers } as unknown as DroppableContainers,
+    droppableRects: listRects,
+    over: { id: over.id, data: over.data, disabled: false, rect: listRects.get(overId)! },
+    scrollableAncestors: [], scrollAdjustedTranslate: null,
+  };
+  const moved = columnCoordinates(new KeyboardEvent("keydown", { code }), { active: active.id, currentCoordinates: { x: 0, y: 0 }, context })!;
+  if (moved.x === 0 && moved.y === 0) return "unchanged";
+  return boardCollisionDetection({
+    active, collisionRect: rect(moved.x, moved.y, 230, 540), droppableContainers: listContainers, droppableRects: listRects, pointerCoordinates: null,
+  })[0]?.id;
+}
+
+it.each([
+  ["ArrowDown", "ideas", "review"],
+  ["ArrowDown", "review", "lane:0"],
+  ["ArrowDown", "lane:0", "lane:0"],
+  ["ArrowUp", "lane:0", "review"],
+  ["ArrowUp", "review", "ideas"],
+  ["ArrowRight", "ideas", "planned"],
+  ["ArrowRight", "review", "done"],
+  ["ArrowRight", "lane:0", "lane:1"],
+  ["ArrowRight", "done", "lane:2"],
+  ["ArrowRight", "progress", "lane:3"],
+  ["ArrowLeft", "planned", "ideas"],
+  ["ArrowRight", "lane:3", "unchanged"],
+] as const)("moves a dragged list with %s from %s to %s", (code, from, expected) => {
+  expect(stepList(code, from)).toBe(expected);
 });

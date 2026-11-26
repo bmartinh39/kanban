@@ -1,23 +1,23 @@
-import { useCallback, useState } from "react";
+import type { Column } from "./board-state";
+
+/** The visible lane a list shows in: stored lanes beyond the screen's lanes fold in, in order (issue #53). */
+export const visibleLane = (list: Column, count: number) => list.lane % count;
 
 /**
- * Deals lists into lanes in board order: list i goes to lane i % count. A list never changes lane
- * while cards move, so drag previews cannot reflow the board.
+ * The lists of each visible lane, top to bottom: by stored lane, then board order. Every visible lane is
+ * returned, empty ones too, so lists can be dropped into them.
  */
-export function boardLanes<T>(lists: T[], count: number) {
-  const lanes = Array.from({ length: Math.min(count, lists.length) }, () => [] as { list: T; index: number }[]);
-  lists.forEach((list, index) => lanes[index % lanes.length].push({ list, index }));
-  return lanes;
+export function visibleLanes(board: Column[], count: number) {
+  if (!board.length) return [];
+  const entries = board.map((list, index) => ({ list, index }));
+  return Array.from({ length: count }, (_, lane) => entries
+    .filter(({ list }) => visibleLane(list, count) === lane)
+    .toSorted((first, second) => first.list.lane - second.list.lane || first.index - second.index));
 }
 
-/** The number of tracks the grid's CSS auto-fill columns resolve to at its current width. */
-export function useLaneCount() {
-  const [count, setCount] = useState(1);
-  const ref = useCallback((grid: HTMLElement | null) => {
-    if (!grid) return;
-    const observer = new ResizeObserver(() => setCount(getComputedStyle(grid).gridTemplateColumns.split(" ").length));
-    observer.observe(grid);
-    return () => observer.disconnect();
-  }, []);
-  return [count, ref] as const;
+/** The visible lane with the least content (a list counts as two cards), leftmost on ties; new lists go here. */
+export function shortestLane(board: Column[], count: number) {
+  const sizes = Array.from({ length: count }, () => 0);
+  for (const list of board) sizes[visibleLane(list, count)] += 2 + list.cards.length;
+  return sizes.indexOf(Math.min(...sizes));
 }

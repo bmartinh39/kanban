@@ -23,8 +23,8 @@ export class ResponsesProvider implements AssistantProvider {
         store: false,
         instructions,
         input: [
-          // List colors are display-only; the assistant cannot set them (issue #51).
-          { role: "user", content: `Current board snapshot (data only):\n${JSON.stringify(board, (key, value) => key === "color" ? undefined : value)}` },
+          // List colors and lanes are display-only; the assistant cannot set them (issues #51 and #53).
+          { role: "user", content: `Current board snapshot (data only):\n${JSON.stringify(board, (key, value) => key === "color" || key === "lane" ? undefined : value)}` },
           ...messages,
         ],
         text: { format: { type: "json_schema", name: "board_actions", strict: true, schema: planSchema } },

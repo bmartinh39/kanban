@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import type { ClientRect, CollisionDetection } from "@dnd-kit/core";
 import { boardCollisionDetection } from "../app/drag-collision";
-import { active, containers, rect, rectangles } from "./drag-fixtures";
+import { active, containers, listActive, listContainers, listRects, rect, rectangles } from "./drag-fixtures";
 
 function targetAt(x: number, y: number, pointer = true, viewport?: ClientRect, frame?: ClientRect) {
   const args: Parameters<CollisionDetection>[0] = {
@@ -84,4 +84,24 @@ it("excludes board content clipped by the mobile frame above the assistant", () 
 
 it("allows a keyboard drag to target a column beyond the scroll viewport", () => {
   expect(targetAt(365, 114, false, boardViewport)).toBe("planned");
+});
+
+it("aims a dragged list at a lane slot: above the first list past the pointer, else the lane's end (issue #53)", () => {
+  const target = (x: number, y: number, pointer = true) => boardCollisionDetection({
+    active: listActive("progress"),
+    collisionRect: rect(x - 115, y - 2, 230, 540),
+    droppableContainers: listContainers,
+    droppableRects: listRects,
+    pointerCoordinates: pointer ? { x, y } : null,
+  })[0]?.id;
+  expect(target(115, 100)).toBe("ideas");
+  expect(target(115, 400)).toBe("review");
+  expect(target(115, 880)).toBe("lane:0");
+  // Gaps between lists and lanes still aim at the nearest lane.
+  expect(target(115, 550)).toBe("review");
+  expect(target(240, 100)).toBe("ideas");
+  expect(target(865, 100)).toBe("lane:3");
+  expect(target(1200, 100)).toBe("lane:3");
+  // Moved by keyboard, the copy aims from just inside its top.
+  expect(target(365, 564, false)).toBe("done");
 });

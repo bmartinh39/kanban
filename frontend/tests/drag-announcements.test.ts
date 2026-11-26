@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import type { Over } from "@dnd-kit/core";
 import { createDragAnnouncements } from "../app/drag-announcements";
 import { initialBoard } from "../app/board-state";
-import { active, containers } from "./drag-fixtures";
+import { active, containers, listActive, listContainers } from "./drag-fixtures";
 
 const board = initialBoard.map(column => column.id === "done" ? { ...column, name: "Complete", cards: [] } : column);
 const title = "A small moment of delight";
@@ -41,4 +41,21 @@ it("reports the saved position when leaving the board, dropping outside, or canc
   expect(announcements.onDragCancel({ active, over: target("planned") })).toBe(
     `Cancelled moving ${title}. It remains in Ideas, position 2 of 3.`,
   );
+});
+
+it("announces list moves by lane and position (issue #53)", () => {
+  const announcements = createDragAnnouncements(initialBoard);
+  const list = listActive("progress");
+  const over = (id: string): Over => {
+    const { data, rect } = listContainers.find(container => container.id === id)!;
+    return { id, data: { current: { ...data.current, count: 3 } }, rect: rect.current!, disabled: false };
+  };
+  expect(announcements.onDragStart({ active: list })).toBe("Picked up list In progress in lane 3, position 1 of 1.");
+  expect(announcements.onDragOver({ active: list, over: over("progress") })).toBeUndefined();
+  expect(announcements.onDragOver({ active: list, over: null })).toBe("No drop target. List In progress remains in lane 3, position 1 of 1.");
+  expect(announcements.onDragOver({ active: list, over: over("progress") })).toBe("No change. List In progress remains in lane 3, position 1 of 1.");
+  expect(announcements.onDragOver({ active: list, over: over("ideas") })).toBe("Moving list In progress to lane 1, position 1 of 3.");
+  expect(announcements.onDragOver({ active: list, over: over("done") })).toBe("Moving list In progress to lane 2, position 2 of 3.");
+  expect(announcements.onDragEnd({ active: list, over: over("lane:1") })).toBe("Dropped list In progress in lane 2, position 3 of 3.");
+  expect(announcements.onDragCancel({ active: list, over: over("ideas") })).toBe("Cancelled moving list In progress. It remains in lane 3, position 1 of 1.");
 });

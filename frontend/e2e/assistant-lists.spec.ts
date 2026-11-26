@@ -23,7 +23,10 @@ test("assistant creates and renames a list, then confirms empty-list deletion", 
   const id = boardState.columns.at(-1)!.id;
   await send(page, "Rename Release to Shipped");
   await expect(page.getByRole("log")).toContainText('Renamed list "Release" to "Shipped".');
-  expect(boardState.columns.at(-1)).toEqual({ id, name: "Shipped", color: "#6fd6a8", cards: [] });
+  // The assistant's new list goes to the shortest visible lane (issue #53): on three lanes the third, holding
+  // only In progress; on a phone's single lane, the first.
+  const lane = page.viewportSize()!.width <= 700 ? 0 : 2;
+  expect(boardState.columns.at(-1)).toEqual({ id, name: "Shipped", color: "#6fd6a8", lane, cards: [] });
   await send(page, "Delete Shipped, yes I confirm");
   const dialog = page.getByRole("dialog", { name: "Delete this list?" });
   await expect(dialog).toContainText("Delete the empty list Shipped?");

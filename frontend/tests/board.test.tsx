@@ -130,6 +130,27 @@ describe("board interface", () => {
     expect(saved.color).not.toBe("#f07a8a");
     expect(list.querySelector<HTMLElement>(".status-dot")!.style.background).not.toBe("");
   });
+  it("picks up a list from its header, shows its floating copy, and cancels in place (issue #53)", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    const header = await screen.findByRole("group", { name: "Ideas" });
+    // Presses on the header's buttons leave the list alone; its free space starts a pointer drag.
+    fireEvent.mouseDown(within(header).getByRole("button", { name: "Rename Ideas" }));
+    fireEvent.touchStart(within(header).getByRole("button", { name: "Delete list Ideas" }), { touches: [{ clientX: 0, clientY: 0 }] });
+    fireEvent.mouseDown(header, { button: 0 });
+    fireEvent.mouseUp(header);
+    fireEvent.touchStart(header, { touches: [{ clientX: 0, clientY: 0 }] });
+    fireEvent.touchEnd(header);
+    header.focus();
+    await user.keyboard("[Space]");
+    expect(document.querySelector(".list-drag-preview")).toHaveTextContent("Ideas");
+    // jsdom has no layout, so cancel rather than drop; browser tests cover real targets.
+    // With no measured width the board shows one lane, which Ideas leads.
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("status")).toHaveTextContent("Cancelled moving list Ideas. It remains in lane 1, position 1 of 5.");
+    expect(document.querySelector(".list-drag-preview")).toBeNull();
+    expect(screen.getAllByRole("region", { name: / column$/ })[0]).toHaveAccessibleName("Ideas column");
+  });
   it("types a space while editing a card instead of picking the card up", async () => {
     const user = userEvent.setup();
     render(<Home />);

@@ -1,7 +1,8 @@
 import type { Column } from "./board-state";
 import { applyCommands, parseCommands } from "./board-commands";
-import type { BoardCommand } from "./board-state";
+import { boardReducer, type BoardCommand } from "./board-state";
 import { nextListColor } from "./list-colors";
+import { shortestLane } from "./board-lanes";
 import { batchLimit, chatHistoryByteLimit, chatHistoryLimit, chatMessageCharacterLimit, clip, nameDisplayLimit, utf8Bytes } from "./limits";
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -76,7 +77,8 @@ export function boundedHistory(messages: ChatMessage[]): ChatMessage[] {
 }
 
 // Resolve every target against the snapshot before dispatching any actions.
-export function prepareActions(board: Column[], plan: AssistantPlan): { actions: BoardCommand[]; message: string; deletedLists: Column[] } {
+/** `laneCount` is how many lanes the board shows; new lists go to the shortest one (issue #53). */
+export function prepareActions(board: Column[], plan: AssistantPlan, laneCount = 1): { actions: BoardCommand[]; message: string; deletedLists: Column[] } {
   const actions: BoardCommand[] = [];
   const outcomes: string[] = [];
   function findList(name: string | null) {
@@ -94,8 +96,8 @@ export function prepareActions(board: Column[], plan: AssistantPlan): { actions:
       if (operation.type !== "delete-list" && !operation.title?.trim()) throw new Error("Lists need a nonblank name. No changes were made.");
       if (operation.type === "create-list") {
         // The assistant does not choose colors; new lists take the next default color.
-        const listCount = board.length + actions.filter(action => action.type === "create-list").length;
-        actions.push({ type: "create-list", listId: crypto.randomUUID(), name: operation.title!.trim(), color: nextListColor(listCount) });
+        const created = actions.reduce(boardReducer, board);
+        actions.push({ type: "create-list", listId: crypto.randomUUID(), name: operation.title!.trim(), color: nextListColor(created.length), lane: shortestLane(created, laneCount) });
         outcomes.push(`Created list ${quoted(operation.title!.trim())}.`);
       } else {
         const column = findList(operation.list);

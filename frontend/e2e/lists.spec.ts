@@ -47,7 +47,7 @@ test("deletes a populated list and its cards only after confirmation", async ({ 
 });
 
 test("deletes the last empty list and can create a fresh list", async ({ page, boardState }) => {
-  boardState.columns = [{ id: "only", name: "Only", color: "#79bdf0", cards: [] }];
+  boardState.columns = [{ id: "only", name: "Only", color: "#79bdf0", lane: 0, cards: [] }];
   await page.reload();
   await page.getByRole("button", { name: "Delete list Only", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
@@ -214,14 +214,13 @@ for (const status of [409, 503]) {
 test("stacks a wrapped list directly under the list above it instead of under the tallest one", async ({ page, boardState }) => {
   test.skip(page.viewportSize()!.width <= 700, "Narrow screens show a single lane");
   const cards = Array.from({ length: 6 }, (_, index) => ({ id: `tall-${index}`, title: `Tall card ${index}`, details: "Details" }));
-  boardState.columns = Array.from({ length: 8 }, (_, index) => ({ id: `l${index}`, name: `List ${index}`, color: "#79bdf0", cards: index ? [] : cards }));
+  boardState.columns = Array.from({ length: 8 }, (_, index) => ({ id: `l${index}`, name: `List ${index}`, color: "#79bdf0", lane: index % 3, cards: index ? [] : cards }));
   await page.reload();
-  await expect.poll(() => page.locator(".board-lane").count()).toBeGreaterThan(1);
-  const lanes = await page.locator(".board-lane").count();
-  expect(lanes).toBeLessThan(8);
+  // Lists keep their stored lanes (issue #53); List 4 shares List 1's lane.
+  await expect.poll(() => page.locator(".board-lane").count()).toBeGreaterThanOrEqual(3);
   const tall = await list(page, "List 0").boundingBox();
   const short = await list(page, "List 1").boundingBox();
-  const wrapped = await list(page, `List ${lanes + 1}`).boundingBox();
+  const wrapped = await list(page, "List 4").boundingBox();
   expect(wrapped!.x).toBeCloseTo(short!.x, 0);
   expect(wrapped!.y - (short!.y + short!.height)).toBeLessThanOrEqual(20);
   expect(wrapped!.y).toBeLessThan(tall!.y + tall!.height);
@@ -249,4 +248,105 @@ test("creates a list with a color picked on the wheel and keeps it after reload 
   await page.reload();
   await expect(list(page, "Blocked").locator(".status-dot")).toHaveCSS("background-color", preview);
   await expect(list(page, "Planned").locator(".status-dot")).toHaveCSS("background-color", "rgb(121, 189, 240)");
+});
+
+// List dragging (issue #53): the header's free space, right of the card count, grabs the list. Lists keep
+// their own lanes; on this three-lane screen the seeded board shows [Ideas, In review], [Planned, Done], [In progress].
+async function headerGrab(page: Page, name: string) {
+  const count = (await list(page, name).locator(".column-count").boundingBox())!;
+  return { x: count.x + count.width + 12, y: count.y + count.height / 2 };
+}
+const lanes = (boardState: { columns: { id: string; lane: number }[] }) =>
+  [0, 1, 2].map(lane => boardState.columns.filter(column => column.lane === lane).map(column => column.id));
+const boxes = (page: Page, names: string[]) => Promise.all(names.map(name => list(page, name).boundingBox()));
+
+async function pickUp(page: Page, name: string) {
+  const from = await headerGrab(page, name);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 10, from.y, { steps: 3 });
+  await expect(list(page, name)).toHaveClass(/is-list-dragging/);
+}
+
+test("drops a list between two lists of another lane without moving other lanes (issue #53)", async ({ page, boardState }, info) => {
+  test.skip(page.viewportSize()!.width <= 700, "Narrow screens use touch; see the mobile case");
+  // Header buttons keep their own behavior: pressing one and moving does not pick up the list.
+  const rename = list(page, "Ideas").getByRole("button", { name: "Rename Ideas", exact: true });
+  const renameBox = (await rename.boundingBox())!;
+  await page.mouse.move(renameBox.x + 5, renameBox.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(renameBox.x + 40, renameBox.y + 40, { steps: 4 });
+  await expect(page.locator(".list-drag-preview")).toHaveCount(0);
+  await page.mouse.up();
+
+  const untouched = await boxes(page, ["Planned", "In progress"]);
+  await expect(list(page, "Done").locator(".column-header")).toHaveCSS("cursor", "grab");
+  await pickUp(page, "Done");
+  await expect(page.locator(".list-drag-preview")).toBeVisible();
+  // Aim through the gap between Ideas and In review: the marker appears above In review.
+  const [ideas] = await boxes(page, ["Ideas"]);
+  await page.mouse.move(ideas!.x + ideas!.width / 2, ideas!.y + ideas!.height + 7, { steps: 10 });
+  await expect(list(page, "In review")).toHaveClass(/list-drop-target/);
+  await expect(page.locator(".list-drop-target, .lane-drop-end")).toHaveCount(1);
+  await expect(list(page, "In review")).not.toHaveClass(/is-over/);
+  await page.screenshot({ path: info.outputPath("list-drag.png") });
+  await page.mouse.up();
+  await expect(page.locator(".drag-preview")).toHaveCount(0);
+  await expect.poll(() => lanes(boardState)).toEqual([["ideas", "done", "review"], ["planned"], ["progress"]]);
+  expect(await boxes(page, ["Planned", "In progress"])).toEqual(untouched);
+  await page.reload();
+  await expect(list(page, "Done")).toBeVisible();
+  const [kept, after] = await boxes(page, ["Done", "Ideas"]);
+  expect(kept!.x).toBeCloseTo(after!.x, 0);
+  expect(kept!.y).toBeGreaterThan(after!.y);
+});
+
+test("drops a list at the bottom of a shorter lane (issue #53)", async ({ page, boardState }) => {
+  test.skip(page.viewportSize()!.width <= 700, "Narrow screens use touch; see the mobile case");
+  await pickUp(page, "Ideas");
+  const [progress] = await boxes(page, ["In progress"]);
+  await page.mouse.move(progress!.x + progress!.width / 2, progress!.y + progress!.height + 60, { steps: 10 });
+  await expect(page.locator(".lane-drop-end")).toHaveCount(1);
+  await expect(page.locator(".list-drop-target")).toHaveCount(0);
+  await page.mouse.up();
+  await expect.poll(() => lanes(boardState)).toEqual([["review"], ["planned", "done"], ["progress", "ideas"]]);
+});
+
+test("moves a list by keyboard within its lane and to the lane's end (issue #53)", async ({ page, boardState }) => {
+  test.skip(page.viewportSize()!.width <= 700, "Lane movement needs several lanes");
+  const header = page.getByRole("group", { name: "Ideas", exact: true });
+  const live = page.getByRole("status").and(page.locator("[aria-live=assertive]"));
+  await header.focus();
+  await page.keyboard.press("Space");
+  await expect(list(page, "Ideas")).toHaveClass(/is-list-dragging/);
+  await expect(live).toHaveText("Picked up list Ideas in lane 1, position 1 of 2.");
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve)));
+  // Just above In review is where Ideas already is: no marker, no change.
+  await page.keyboard.press("ArrowDown");
+  await expect(live).toHaveText("No change. List Ideas remains in lane 1, position 1 of 2.");
+  await expect(page.locator(".list-drop-target, .lane-drop-end")).toHaveCount(0);
+  await page.keyboard.press("ArrowDown");
+  await expect(page.locator(".lane-drop-end")).toHaveCount(1);
+  await expect(live).toHaveText("Moving list Ideas to lane 1, position 2 of 2.");
+  await page.keyboard.press("Space");
+  await expect.poll(() => lanes(boardState)).toEqual([["review", "ideas"], ["planned", "done"], ["progress"]]);
+  await expect(header).toBeFocused();
+});
+
+test("long-pressing a list header moves the list on touch screens (issue #53)", async ({ page, boardState }, info) => {
+  test.skip(info.project.name !== "mobile", "Uses Chromium touch input");
+  // Tall enough that the second list's header is on screen, as in the card touch test.
+  await page.setViewportSize({ width: 390, height: 900 });
+  const sensor = await page.context().newCDPSession(page);
+  // One lane shows lane 1 first: Ideas, In review, then the other lanes.
+  const from = await headerGrab(page, "In review");
+  await sensor.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [from] });
+  await expect(list(page, "In review")).toHaveClass(/is-list-dragging/);
+  const target = (await list(page, "Ideas").locator(".column-header").boundingBox())!;
+  for (const step of [0.25, 0.5, 0.75, 1]) {
+    await sensor.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from.x, y: from.y + (target.y + 10 - from.y) * step }] });
+  }
+  await expect(list(page, "Ideas")).toHaveClass(/list-drop-target/);
+  await sensor.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await expect.poll(() => lanes(boardState)).toEqual([["review", "ideas"], ["planned", "done"], ["progress"]]);
 });
