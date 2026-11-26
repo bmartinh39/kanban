@@ -14,6 +14,7 @@ import { DeleteCardDialog, DeleteListDialog } from "./delete-list-dialog";
 import { prepareActions, type AssistantPlan } from "./assistant-commands";
 import { AddItemDialog } from "./add-item-dialog";
 import { BoardColumn } from "./board-column";
+import { boardLanes, useLaneCount } from "./board-lanes";
 import { CardDragPreview } from "./task-card";
 
 const emptyBoard: Column[] = [];
@@ -72,6 +73,7 @@ export default function Home() {
   /** The control that opened the current dialog; focus returns to it. */
   const addTrigger = useRef<HTMLButtonElement>(null);
   const boardViewport = useRef<HTMLDivElement>(null);
+  const [laneCount, laneGrid] = useLaneCount();
   // Follow-ups that wait for a save to settle: focus or scroll the right element afterwards.
   const keyboardDrop = useRef<string | null>(null);
   const createdList = useRef<string | null>(null);
@@ -95,6 +97,10 @@ export default function Home() {
     else collapseAssistant(false);
   }
 
+  // Lists sit in lanes, so DOM order is not board order; find a list by its id.
+  function listElement(id: string) {
+    return Array.from(boardViewport.current?.querySelectorAll<HTMLElement>("[data-list]") ?? []).find(element => element.dataset.list === id);
+  }
   useLayoutEffect(() => {
     if (storage.saving || !deletedList.current) return;
     deletedList.current = false;
@@ -102,14 +108,12 @@ export default function Home() {
   }, [savedBoard, storage.saving]);
   useLayoutEffect(() => {
     if (storage.saving || !deletedCardColumn.current) return;
-    const index = savedBoard.findIndex(column => column.id === deletedCardColumn.current);
+    listElement(deletedCardColumn.current)?.querySelector<HTMLButtonElement>(".add-card")?.focus({ preventScroll: true });
     deletedCardColumn.current = null;
-    boardViewport.current?.querySelectorAll<HTMLButtonElement>(".add-card")[index]?.focus({ preventScroll: true });
   }, [savedBoard, storage.saving]);
   useLayoutEffect(() => {
     if (storage.saving || !createdList.current) return;
-    const index = savedBoard.findIndex(column => column.id === createdList.current);
-    if (index >= 0) boardViewport.current?.querySelectorAll(".column-header")[index]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    listElement(createdList.current)?.querySelector(".column-header")?.scrollIntoView({ block: "nearest", inline: "nearest" });
     createdList.current = null;
   }, [savedBoard, storage.saving]);
   useLayoutEffect(() => {
@@ -242,7 +246,8 @@ export default function Home() {
         accessibility={{ announcements, screenReaderInstructions: { draggable: dragInstructions } }}
       >
         <div ref={boardViewport} className="board-scroll" aria-label="Project board columns" tabIndex={0}>
-          <div className="board-grid">{board.map((column, index) => <BoardColumn
+          <div ref={laneGrid} className="board-grid">{boardLanes(board, laneCount).map((lane, laneIndex) => <div key={laneIndex} className="board-lane">
+            {lane.map(({ list: column, index }) => <BoardColumn
             key={column.id}
             column={column}
             index={index}
@@ -253,7 +258,8 @@ export default function Home() {
             onRename={name => saveCommand({ type: "rename", columnId: column.id, name: name.trim() })}
             onEdit={(cardId, changes) => saveCommand({ type: "edit", cardId, ...changes })}
             onPriority={(cardId, priority) => dispatch({ type: "set-priority", cardId, priority })}
-          />)}</div>
+            />)}
+          </div>)}</div>
           {!board.length && <div className="empty-board"><Columns3 size={25} /><p>Add a list to get started.</p></div>}
         </div>
         <DragOverlay>{activeCard && <CardDragPreview card={activeCard} />}</DragOverlay>

@@ -212,3 +212,19 @@ for (const status of [409, 503]) {
     expect(writes).toBe(1);
   });
 }
+
+test("stacks a wrapped list directly under the list above it instead of under the tallest one", async ({ page, boardState }) => {
+  test.skip(page.viewportSize()!.width <= 700, "Narrow screens show a single lane");
+  const cards = Array.from({ length: 6 }, (_, index) => ({ id: `tall-${index}`, title: `Tall card ${index}`, details: "Details" }));
+  boardState.columns = Array.from({ length: 8 }, (_, index) => ({ id: `l${index}`, name: `List ${index}`, cards: index ? [] : cards }));
+  await page.reload();
+  await expect.poll(() => page.locator(".board-lane").count()).toBeGreaterThan(1);
+  const lanes = await page.locator(".board-lane").count();
+  expect(lanes).toBeLessThan(8);
+  const tall = await list(page, "List 0").boundingBox();
+  const short = await list(page, "List 1").boundingBox();
+  const wrapped = await list(page, `List ${lanes + 1}`).boundingBox();
+  expect(wrapped!.x).toBeCloseTo(short!.x, 0);
+  expect(wrapped!.y - (short!.y + short!.height)).toBeLessThanOrEqual(20);
+  expect(wrapped!.y).toBeLessThan(tall!.y + tall!.height);
+});

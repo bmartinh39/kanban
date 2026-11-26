@@ -1,4 +1,5 @@
 import { assistantPanel, revealAssistant } from "../e2e/assistant-controls";
+import { expectKeyboardDropTarget } from "../e2e/fixtures";
 import { expect, test, type Page } from "@playwright/test";
 import type { BoardSnapshot } from "../app/board-commands";
 
@@ -57,6 +58,7 @@ test("new lists and their cards persist, and competing list creation rejects sta
   await page.keyboard.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
   await expect(target).toHaveClass(/is-over/);
+  await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowLeft");
   const previous = page.getByRole("region", { name: `${created.columns.at(-2)!.name} column`, exact: true });
   await expect(previous).toHaveClass(/is-over/);
@@ -66,6 +68,7 @@ test("new lists and their cards persist, and competing list creation rejects sta
   await handle.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
   await expect(previous).toHaveClass(/is-over/);
+  await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowRight");
   await expect(target).toHaveClass(/is-over/);
   await page.keyboard.press("Space");
@@ -104,6 +107,7 @@ test("real database preserves card content, priority, names, moves and order on 
   await page.keyboard.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("region", { name: "Ideas column" })).toHaveClass(/is-over/);
+  await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowUp");
   await expect(page.getByRole("status").and(page.locator("[aria-live=assertive]"))).toContainText(`Moving ${title} to Ideas`);
   await page.keyboard.press("Space");
@@ -112,6 +116,7 @@ test("real database preserves card content, priority, names, moves and order on 
   await handle.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("region", { name: "Ideas column" })).toHaveClass(/is-over/);
+  await expectKeyboardDropTarget(page);
   await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("region", { name: "Planned column" })).toHaveClass(/is-over/);
   await page.keyboard.press("ArrowUp");
